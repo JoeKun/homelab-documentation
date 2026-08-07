@@ -1,0 +1,4 @@
+# /etc/rc.conf.d/hostname: system configuration for hostname
+
+hostname="my_server.my_domain.tld"
+

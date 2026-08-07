@@ -1,0 +1,67 @@
+# /usr/local/etc/zshenv
+# 
+# Configuration file for zsh
+# 
+# Originally taken from files available at 
+# http://formation-debian.via.ecp.fr/fichiers-config.tar.gz
+# which are part of the "Formation Debian GNU/Linux".
+# 
+# Modified by Joel Lopes Da Silva.
+
+# PATH
+export PATH="/usr/local/bin:/usr/local/sbin:/bin:/usr/bin:/usr/sbin:/sbin:/usr/games"
+if [[ -d "/opt/local/bin" ]]
+then
+    export PATH="/opt/local/bin:${PATH}"
+fi
+if [[ -d "${HOME}/bin" ]]
+then
+    export PATH="${PATH}:${HOME}/bin"
+fi
+
+# Default viewer and editor (for Crontab, CVS, ...)
+export VISUAL=vim
+export EDITOR=vim
+
+# Default pager (for man, ...)
+if [[ ${+commands[vimpager]} -ne 0 ]]
+then
+    export PAGER=vimpager
+else
+    if [[ ${+commands[most]} -ne 0 ]]
+    then
+        export PAGER=most
+    else
+        export PAGER=less
+    fi
+fi
+
+# Permissions rw-r--r-- for created files
+# and rwxr-xr-x for created directories
+umask 022
+
+# HTTP/FTP Proxy without password
+#export http_proxy="http://proxy.exemple.org:8080"
+#export ftp_proxy="ftp://proxy.exemple.org:8080"
+
+# HTTP/FTP Proxy with password
+#export http_proxy="http://login:password@proxy.exemple.org:8080"
+#export ftp_proxy="ftp://login:password@proxy.exemple.org:8080"
+
+# Don't use the proxy for local domains
+#export no_proxy="exemple.org"
+
+# Use color for grep
+export GREP_OPTIONS='--color=auto'
+
+# Set active coloring theme for markdown viewer mdv (if present).
+if [[ ${+commands[mdv]} -ne 0 ]]
+then
+    export MDV_THEME="880.1331" # Bubblegum Bitch
+fi
+
+# Make sure user settings for login is not preserved from previous shells.
+unset LOGIN_GREETING_NAME
+unset LOGIN_GREETING_SLANTED_TEXT_DISABLED
+unset FORTUNE_UPON_LOGIN_DISABLED
+

@@ -1,0 +1,4 @@
+# /etc/rc.conf.d/statd: system configuration for statd
+
+rpc_statd_enable="YES"
+statd_flags="-p 2052"

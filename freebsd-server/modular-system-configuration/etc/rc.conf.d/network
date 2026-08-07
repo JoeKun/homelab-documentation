@@ -1,0 +1,5 @@
+# /etc/rc.conf.d/network: system configuration for network
+
+ifconfig_vtnet0="inet 10.0.0.100 netmask 255.255.0.0"
+ifconfig_vtnet0_ipv6="inet6 accept_rtadv"
+

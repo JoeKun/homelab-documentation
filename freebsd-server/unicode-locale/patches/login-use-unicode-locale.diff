@@ -1,0 +1,21 @@
+diff -ru a/login.conf b/login.conf
+--- a/login.conf	2023-11-10 00:42:18.000000000 -0800
++++ b/login.conf	2023-12-14 09:09:55.085331000 -0800
+@@ -25,7 +25,7 @@
+ 	:passwd_format=sha512:\
+ 	:copyright=/etc/COPYRIGHT:\
+ 	:welcome=/var/run/motd:\
+-	:setenv=BLOCKSIZE=K:\
++	:setenv=BLOCKSIZE=K,LC_COLLATE=C:\
+ 	:mail=/var/mail/$:\
+ 	:path=/sbin /bin /usr/sbin /usr/bin /usr/local/sbin /usr/local/bin ~/bin:\
+ 	:nologin=/var/run/nologin:\
+@@ -48,7 +48,7 @@
+ 	:ignoretime@:\
+ 	:umask=022:\
+ 	:charset=UTF-8:\
+-	:lang=C.UTF-8:
++	:lang=en_US.UTF-8:
+ 
+ #
+ # A collection of common class names - forward them all to 'default'
