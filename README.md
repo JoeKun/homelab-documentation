@@ -109,3 +109,5 @@ If you suspect there may be an unspecified pre-requisite in any of these documen
  10. [Mount special file systems on FreeBSD](freebsd-server/freebsd-special-file-systems.md)
  11. [Modular system configuration on FreeBSD](freebsd-server/freebsd-modular-system-configuration.md)
  12. [Configuring firewall for FreeBSD with `pf`](freebsd-server/freebsd-firewall.md)
+ 13. [Authoritative DNS server on FreeBSD with BIND](freebsd-server/freebsd-dns-bind.md)
+ 14. [Faster DNS zone replication on FreeBSD with `nsnotifyd`](freebsd-server/freebsd-faster-dns-replication-nsnotifyd.md)

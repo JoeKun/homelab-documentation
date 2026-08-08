@@ -13,6 +13,7 @@ If you’re using `poudriere` following [this guide](freebsd-poudriere.md), then
 devel/git
 devel/gmake
 editors/vim
+ftp/curl
 ftp/wget
 misc/figlet
 misc/fortune-mod-freebsd-classic
@@ -55,6 +56,7 @@ And build your packages again.
 # pkg install mmv
 # pkg install htop
 # pkg install screen
+# pkg install curl
 # pkg install wget
 # pkg install bash
 # pkg install most

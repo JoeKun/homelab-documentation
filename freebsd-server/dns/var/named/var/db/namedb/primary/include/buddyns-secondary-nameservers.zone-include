@@ -1,0 +1,39 @@
+; /var/db/namedb/primary/include/buddyns-secondary-nameservers.zone-include
+; named zone file include for BuddyNS secondary nameservers.
+; 
+; Cf. https://www.buddyns.com/support/setup-vanity/#addresses
+; 
+; RFC1912 section 2.8 recommends not to have any more than 7 NS records.
+; Furthermore, BuddyNS's own guidance is not to exceed 5 nameservers for
+; delegation. Cf. https://www.buddyns.com/support/setup/zone-delegation/
+; 
+; For those reasons, the list of secondary nameservers was kept to a
+; total of 5.
+
+; NS Records
+@                       IN      NS      ns1
+@                       IN      NS      ns2
+@                       IN      NS      ns3
+@                       IN      NS      ns4
+@                       IN      NS      ns5
+
+; b.pro.ns.buddyns.com: USA, Texas
+ns1                     IN      A       108.61.224.67
+ns1                     IN      AAAA    2001:19f0:6400:8642::3
+
+; d.pro.ns.buddyns.com: USA, New York
+ns2                     IN      A       107.191.99.111
+ns2                     IN      AAAA    2604:180:2:4cf::3
+
+; g.pro.ns.buddyns.com: USA, Seattle
+ns3                     IN      A       192.184.93.99
+ns3                     IN      AAAA    2604:180:1:92a::3
+
+; j.pro.ns.buddyns.com: Europe, United Kingdom
+ns4                     IN      A       37.143.61.179
+ns4                     IN      AAAA    2a01:a500:2766::5c3f:d10b
+
+; l.pro.ns.buddyns.com: Asia, Japan
+ns5                     IN      A       45.77.29.133
+ns5                     IN      AAAA    2001:19f0:7001:381::3
+
