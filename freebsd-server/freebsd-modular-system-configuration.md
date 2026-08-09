@@ -31,6 +31,12 @@ Just like service startup scripts, which can be located in `/etc/rc.d` or `/usr/
  - `/etc/rc.conf.d`: for services and other system configuration that relate to the FreeBSD base system;
  - `/usr/local/etc/rc.conf.d`: for services installed via packages for the FreeBSD ports tree.
 
+Only the first of these is created by a base FreeBSD installation. The `/usr/local` hierarchy is defined by the ports tree rather than by the base system, so the second one may not exist yet on a freshly installed machine.
+
+```console
+# mkdir -p /usr/local/etc/rc.conf.d
+```
+
 
 ## Modularize basic system configuration
 

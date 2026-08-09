@@ -1,0 +1,4 @@
+# /usr/local/etc/rc.conf.d/smartd: system configuration for smartd
+
+smartd_enable="YES"
+

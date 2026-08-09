@@ -19,6 +19,13 @@ Assuming you [fetched this homelab documentation](freebsd-command-line-tools.md#
 
 This scaffolding ensures that when periodic scripts source `/etc/periodic.conf`, they also source all the files in `/etc/periodic.conf.d` and `/usr/local/etc/periodic.conf.d` with the `.conf` file extension.
 
+Neither of those directories exists on a FreeBSD system out of the box, so let’s just create them both now.
+
+```console
+# mkdir -p /etc/periodic.conf.d
+# mkdir -p /usr/local/etc/periodic.conf.d
+```
+
 It’s worth noting that, unlike FreeBSD’s built-in support for [modular system configuration](freebsd-modular-system-configuration.md), this scaffolding doesn’t support per-service or per-script targeting. This is largely harmless since unused variables are simply ignored by scripts that don’t check them.
 
 
@@ -32,7 +39,6 @@ For a freshly installed [FreeBSD server with ZFS on Root](freebsd-ampere-altra.m
 	 - Daily ZFS health monitoring.
 
 ```console
-# mkdir /etc/periodic.conf.d
 # cd /etc/periodic.conf.d
 # ln -s ../../homelab-documentation/freebsd-server/modular-periodic-scripts-configuration/etc/periodic.conf.d/zfs-pool-scrub.conf
 # ln -s ../../homelab-documentation/freebsd-server/modular-periodic-scripts-configuration/etc/periodic.conf.d/zfs-health-monitoring.conf
@@ -51,12 +57,13 @@ As a quick bonus, let’s add that capability with some very simple `cron` setup
 
 # cd /etc/periodic.conf.d
 # ln -s ../../homelab-documentation/freebsd-server/modular-periodic-scripts-configuration/etc/periodic.conf.d/hourly-periodic-jobs.conf
+
+# mkdir -p /usr/local/etc/periodic/hourly
 ```
 
 Let’s assume you have a custom script for checking the health of a database, which you would like to run hourly. Assuming the script has the appropriate shebang and the executable bit set in its permissions, you can simply drop that script in `/usr/local/etc/periodic/hourly` following the usual naming conventions for periodic scripts.
 
 ```console
-# mkdir -p /usr/local/etc/periodic/hourly
 # cd /usr/local/etc/periodic/hourly
 # mv /path/to/database-health-check 500.database-health-check
 ```
