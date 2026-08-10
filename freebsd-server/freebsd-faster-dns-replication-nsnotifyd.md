@@ -14,19 +14,20 @@ More specifically, we will use `nsnotifyd` to invoke a script to request immedia
 
 Assuming you [fetched this homelab documentation](freebsd-command-line-tools.md#fetch-configuration-files) in `/homelab-documentation`, it’s easy to install the [`buddyns-sync-zone` script](dns/opt/local/bin/buddyns-sync-zone).
 
-```
+```console
 # mkdir -p /opt/local/bin
 # cd /opt/local/bin
 # ln -s ../../../homelab-documentation/freebsd-server/dns/opt/local/bin/buddyns-sync-zone
 
 # mkdir -p /opt/local/etc
-# cd /opt/local/etc
-# ln -s ../../../homelab-documentation/freebsd-server/dns/opt/local/etc/buddyns-sync-zone.conf
+# cp /homelab-documentation/freebsd-server/dns/opt/local/etc/buddyns-sync-zone.conf /opt/local/etc/
 # chown root:nobody /opt/local/etc/buddyns-sync-zone.conf
 # chmod 640 /opt/local/etc/buddyns-sync-zone.conf
 ```
 
-Edit `/opt/local/etc/buddyns-sync-zone.conf` with your [BuddyNS API Key](https://www.buddyns.com/support/api/v2/#security-authentication).
+Edit `/opt/local/etc/buddyns-sync-zone.conf` with your [BuddyNS API Key](https://www.buddyns.com/support/api/v2/#security-authentication). This configuration file needs to be readable by the `nobody` user that `nsnotifyd` runs as, but by no one else, and as such, it’s intentionally created as a separate copy of the corresponding sample file in the `homelab-documentation` repository. [^1]
+
+[^1]: This is the best practice for configuration files with secrets covered in [Private configuration tweaks on a dedicated branch](freebsd-private-configuration-tweaks.md#keep-credentials-and-secrets-separate).
 
 It’s worth noting that the `buddyns-sync-zone` script relies on the `curl` command-line utility, which you can install as shown in the [Useful command-line tools for FreeBSD](freebsd-command-line-tools.md) guide.
 
@@ -57,9 +58,9 @@ Finally, on the target server machine, install `nsnotifyd`.
 
 ## Configure and enable `nsnotifyd`
 
-Configuring `nsnotifyd` can be done directly in its system configuration file, in `/usr/local/etc/rc.conf.d/nsnotifyd`. [^1]
+Configuring `nsnotifyd` can be done directly in its system configuration file, in `/usr/local/etc/rc.conf.d/nsnotifyd`. [^2]
 
-[^1]: As shown in [Modular system configuration on FreeBSD](freebsd-modular-system-configuration.md).
+[^2]: As shown in [Modular system configuration on FreeBSD](freebsd-modular-system-configuration.md).
 
 ```console
 # cat << EOF > /usr/local/etc/rc.conf.d/nsnotifyd

@@ -109,6 +109,8 @@ You should then edit the name and email fields in the user section of this `.git
 # git config --global user.email "john@smith.com"
 ```
 
+If you would like to keep track of these kinds of private edits to configuration files in your local clone of the `homelab-documentation` repository, you may want to consider [creating a dedicated branch containing your private tweaks](freebsd-private-configuration-tweaks.md).
+
 
 ## Configure `zsh`
 
