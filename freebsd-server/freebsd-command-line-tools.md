@@ -20,6 +20,7 @@ misc/fortune-mod-freebsd-classic
 misc/mmv
 shells/bash
 shells/zsh
+sysutils/fastfetch
 sysutils/htop
 sysutils/most
 sysutils/pstree
@@ -64,6 +65,12 @@ And build your packages again.
 # pkg install gmake
 # pkg install pwgen
 # pkg install pstree
+```
+
+And as a nice-to-have fun bonus, you can install `fastfetch`, which can fetch system information and display it in a pretty way.
+
+```console
+# pkg install fastfetch
 ```
 
 
