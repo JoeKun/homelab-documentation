@@ -41,7 +41,7 @@ fi
 if [[ ${+commands[gmake]} -ne 0 ]]
 then
     function make() {
-        if [[ $(pwd) == "/usr/ports"* ]]
+        if [[ $(pwd) == "/usr/ports"* ]] || [[ $(pwd) == "/usr/local/poudriere/ports"* ]]
         then
             command make "$@"
         else
