@@ -142,7 +142,7 @@ And now you should see the `buddyns-sync-zone` script invoked for a zone wheneve
 
 You can confirm everything is working by monitoring the daemon logs on your server for the word `buddyns`.
 
-```
+```console
 # tail -f /var/log/daemon.log | grep -i buddyns
 ```
 
@@ -156,7 +156,7 @@ buddyns-sync-zone[98765]: Triggered sync for zone my_domain.tld with BuddyNS.
 
 You can also confirm the actual zone transfer is taking place in a timely fashion by monitoring the `named` log file for the term `AXFR`.
 
-```
+```console
 # tail -f /var/named/var/log/named.log | grep -i axfr
 ```
 

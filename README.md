@@ -114,3 +114,4 @@ If you suspect there may be an unspecified pre-requisite in any of these documen
  15. [Configuring firewall for FreeBSD with `pf`](freebsd-server/freebsd-firewall.md)
  16. [Authoritative DNS server on FreeBSD with BIND](freebsd-server/freebsd-dns-bind.md)
  17. [Faster DNS zone replication on FreeBSD with `nsnotifyd`](freebsd-server/freebsd-faster-dns-replication-nsnotifyd.md)
+ 18. [SSL/TLS certificates with Let’s Encrypt on FreeBSD](freebsd-server/freebsd-ssl-tls-lets-encrypt.md)

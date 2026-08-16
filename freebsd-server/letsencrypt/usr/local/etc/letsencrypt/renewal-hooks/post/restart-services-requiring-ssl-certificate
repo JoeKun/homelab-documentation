@@ -1,0 +1,16 @@
+#! /bin/sh
+
+# OpenLDAP
+#service slapd restart
+
+# Dovecot
+#service dovecot restart
+
+# Postfix
+#service postfix status
+#service postfix restart 2>&1
+#service postfix status
+
+# nginx
+#service nginx restart
+

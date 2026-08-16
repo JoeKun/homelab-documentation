@@ -39,3 +39,7 @@ security/sshguard
 # DNS related services
 dns/bind920
 dns/nsnotifyd
+
+# Let’s Encrypt SSL certificate utilities
+security/py-certbot
+security/py-certbot-dns-rfc2136
