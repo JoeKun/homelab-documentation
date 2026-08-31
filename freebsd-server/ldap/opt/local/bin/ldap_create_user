@@ -1,0 +1,553 @@
+#! /usr/bin/env bash
+#
+# ldap_create_user
+#
+# Created by Joel Lopes Da Silva on 1/1/18.
+# Copyright © 2018-2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Capture script container directory
+pushd $(dirname "${0}") > /dev/null
+script_container_directory=$(pwd)
+popd > /dev/null
+
+# Imports
+. "${script_container_directory}/../lib/ldap_standard_utilities"
+
+
+#-----------------------------------------------------------
+# Usage
+#-----------------------------------------------------------
+
+function print_usage() {
+    cat << 'EOF'
+Usage: ldap_create_user --domain <name> --uid <identifier> [options]
+       ldap_create_user --domain <name> --alias-only --cn <name> [options]
+       ldap_create_user --system --cn <name> [options]
+
+Create an entry for a person, for an address that only forwards, or for the
+identity a service binds as. Anything needed and not given is prompted for.
+
+Whether a person has a local mailbox is not a flag: their mail is delivered
+locally unless --mail-destination says where it goes instead.
+
+Options:
+  --domain <name>
+        The domain the entry belongs to. Not used with --system.
+
+  --uid <identifier>
+        What the person signs in with, and what names the entry.
+
+  --cn <name>
+        Common name. Defaults to the given name and surname together, or to
+        the identifier. Names the entry for --alias-only and --system, and is
+        required for both.
+
+  --given-name <name>
+        Given name, also known as the user’s first name.
+
+  --surname <name>
+        Surname, also known as the user’s last name.
+        Prompted for when a person is created without one.
+
+  --mail <address>
+        The published address a person signs in with, defaulting to
+        <uid>@<domain>.
+        This does not serve as an external routing target, which can only
+        be determined by --mail-destination.
+        However, for the other scenario of a user whose mail is meant to be
+        delivered to a local mailbox, the --mail option determines the
+        canonical name for the local mailbox; in that scenario, the value
+        provided for the --mail option has to be one that corresponds to an
+        address for which the entry explicitly accepts incoming mail, such
+        as the default value of <uid>@<domain>, or another suitable value
+        provided with the --mail-alias option.
+        A bare local part is qualified with the entry’s own domain.
+
+  --mail-alias <address>
+        An additional address this entry accepts mail for. A user may have
+        more than one mail alias. A bare local part is qualified with the
+        entry’s own domain.
+
+  --mail-destination <address>
+        Forward this entry’s mail here rather than delivering it locally.
+
+  --authenticated-sender
+        Let the entry submit mail although it receives none, which is what
+        something like a scanner needs.
+
+  --alias-only
+        An address that forwards and cannot be signed in with. Its --cn
+        is also the local part of its address, so it has to be usable as one.
+
+  --system
+        The identity a service binds as. It belongs to no domain, receives no
+        mail, and takes its access from --capability.
+
+  --capability <name>
+        With --system, grant one of the named attribute sets the access
+        controls define: user-authenticators, mail-routing-readers,
+        group-membership-readers, user-profile-readers. May be given more
+        than once. The groups have to exist already, and an unknown name is
+        refused before anything is created. System accounts become members
+        of the basic capability group service-accounts automatically upon
+        creation.
+
+  --member-of <group>
+        Join a group of the entry’s own domain, creating that group when it
+        does not exist. May be given more than once.
+
+  --system-group <group>
+        Join a system group, creating it unpublished when it does not exist.
+        This kind of group is commonly used to gate access to applications
+        on the server. May be given more than once.
+        A group naming a role inside an application rather than access to it
+        has to be published, so you should declare that one with
+        ldap_create_group --system --published before anyone joins it.
+
+  --user-password <password>
+        The password. Prompted for, without echo, when neither this nor
+        --socket-account is given. An alias-only entry has none either way.
+
+  --socket-account <unix-account>
+        With --system, let the named Unix account of this machine bind as
+        this entry over the Unix socket, and create the entry with no
+        password at all. The account has to exist already, since its user
+        identifier is read from this machine rather than written down, and
+        root is refused. This is what a service running here uses instead of
+        a password, and it writes to the server’s configuration rather than
+        to the directory.
+
+  -h, --help
+        Print this message and exit.
+EOF
+}
+
+
+#-----------------------------------------------------------
+# Parse arguments
+#-----------------------------------------------------------
+
+domain_name=""
+is_system_account=0
+is_alias_only=0
+user_common_name=""
+user_identifier=""
+user_given_name=""
+user_surname=""
+user_mail=""
+user_mail_aliases=()
+user_mail_destination=""
+is_authenticated_sender=0
+user_password=""
+socket_account=""
+user_capabilities=()
+user_domain_groups=()
+user_system_groups=()
+
+number_of_arguments=$#
+for ((i = 1; i <= ${number_of_arguments}; i++))
+do
+    current_argument="${!i}"
+    case "${current_argument}" in
+        "-h"|"--help")
+            print_usage
+            exit 0
+            ;;
+        "--domain")
+            i=$((i + 1))
+            domain_name="${!i}"
+            ;;
+        "--uid")
+            i=$((i + 1))
+            user_identifier="${!i}"
+            ;;
+        "--cn")
+            i=$((i + 1))
+            user_common_name="${!i}"
+            ;;
+        "--given-name")
+            i=$((i + 1))
+            user_given_name="${!i}"
+            ;;
+        "--surname")
+            i=$((i + 1))
+            user_surname="${!i}"
+            ;;
+        "--mail")
+            i=$((i + 1))
+            user_mail="${!i}"
+            ;;
+        "--mail-alias")
+            i=$((i + 1))
+            user_mail_aliases+=("${!i}")
+            ;;
+        "--mail-destination")
+            i=$((i + 1))
+            user_mail_destination="${!i}"
+            ;;
+        "--authenticated-sender")
+            is_authenticated_sender=1
+            ;;
+        "--alias-only")
+            is_alias_only=1
+            ;;
+        "--user-password")
+            i=$((i + 1))
+            user_password="${!i}"
+            ;;
+        "--socket-account")
+            i=$((i + 1))
+            socket_account="${!i}"
+            ;;
+        "--system")
+            is_system_account=1
+            ;;
+        "--capability")
+            i=$((i + 1))
+            user_capabilities+=("${!i}")
+            ;;
+        "--member-of")
+            i=$((i + 1))
+            user_domain_groups+=("${!i}")
+            ;;
+        "--system-group")
+            i=$((i + 1))
+            user_system_groups+=("${!i}")
+            ;;
+        *)
+            echo "Unrecognized option \"${current_argument}\"." >&2
+            echo "Run ldap_create_user --help for the options it accepts." >&2
+            exit 1
+            ;;
+    esac
+done
+
+
+#-----------------------------------------------------------
+# System accounts
+#-----------------------------------------------------------
+
+# These are the identities services bind as. They receive no mail and belong
+# to no domain, and their access comes from the capability groups named on the
+# command line. Membership of `service-accounts` is added for all of them
+# rather than being asked for every time: it grants only the structural
+# attributes any client needs to interpret a result at all.
+
+# Binding as a Unix account is what a service does in place of holding a
+# password, so it means nothing for a person, who has one.
+if [[ -n "${socket_account}" ]] && [[ ${is_system_account} -eq 0 ]]
+then
+    echo "--socket-account is only meaningful with --system." >&2
+    echo "It lets a service on this machine bind as the Unix account it runs" >&2
+    echo "under, which is not how a person signs in." >&2
+    exit 1
+fi
+
+if [[ ${is_system_account} -ne 0 ]]
+then
+    if [[ -z "${user_common_name}" ]]
+    then
+        read -p "Common name of the system account: " -r user_common_name
+    fi
+    # A service on this same machine can bind over the Unix socket as the Unix
+    # account it runs under, so an entry with no password is sufficient there.
+    if [[ -z "${user_password}" ]] && [[ -z "${socket_account}" ]]
+    then
+        read -p "Password for ${user_common_name}: " -r -s user_password
+        echo >&2
+    fi
+
+    escaped_common_name=$(ldap_escape_distinguished_name_value "${user_common_name}")
+    account_distinguished_name="cn=${escaped_common_name},${ldap_system_users_base}"
+
+    # Resolved here for the same reason the capabilities are: an account that
+    # cannot be mapped should leave nothing behind rather than an entry with no
+    # password and no way to authenticate.
+    if [[ -n "${socket_account}" ]]
+    then
+        socket_account_identifier=$(ldap_resolve_socket_account_identifier \
+                                        "${socket_account}") || exit 1
+    fi
+
+    # Every capability is resolved before anything is created, so that a name
+    # that is not one leaves nothing behind rather than an account missing the
+    # access it was asked for. `service-accounts` is checked alongside them:
+    # its absence means the directory skeleton was never created.
+    capability_distinguished_names=()
+    for capability in "service-accounts" "${user_capabilities[@]}"
+    do
+        escaped_capability=$(ldap_escape_distinguished_name_value "${capability}")
+        capability_distinguished_name="cn=${escaped_capability},${ldap_system_capabilities_base}"
+        if ! ldap_entry_exists "${capability_distinguished_name}"
+        then
+            echo "Failed to create the system account \"${user_common_name}\"." >&2
+            echo "There is no \"${capability}\" capability. The capabilities are the groups" >&2
+            echo "named by the access controls in slapd.ldif, and are created along with the" >&2
+            echo "rest of the directory by ldap_create_top_level_directory_and_system_entries." >&2
+            exit 1
+        fi
+        capability_distinguished_names+=("${capability_distinguished_name}")
+    done
+
+    # Built with ldap_combine_attributes so that an account without a password
+    # does not leave a blank line here: in LDIF that would end the entry and
+    # orphan everything after it.
+    account_attributes=()
+    account_attributes+=("objectClass: top")
+    account_attributes+=("objectClass: applicationProcess")
+    if [[ -n "${user_password}" ]]
+    then
+        encrypted_password=$(slappasswd -h "{CRYPT}" -c '$2a$12$%.22s' -s "${user_password}")
+        account_attributes+=("objectClass: simpleSecurityObject")
+        account_attributes+=("$(ldap_attribute "userPassword" "${encrypted_password}")")
+    fi
+    account_attributes+=("$(ldap_attribute "cn" "${user_common_name}")")
+    combined_account_attributes=$(ldap_combine_attributes "${account_attributes[@]}")
+
+    ldap_perform_standard_add "
+dn: ${account_distinguished_name}
+${combined_account_attributes}
+" || exit 1
+
+    if [[ -n "${socket_account}" ]]
+    then
+        ldap_map_socket_account "${socket_account_identifier}" \
+                                "${account_distinguished_name}" || exit 1
+    fi
+
+    for capability_distinguished_name in "${capability_distinguished_names[@]}"
+    do
+        ldap_add_member_to_existing_group "${capability_distinguished_name}" \
+                                          "${account_distinguished_name}"
+    done
+
+    for system_group in "${user_system_groups[@]}"
+    do
+        ldap_add_group_member "${system_group}" "${ldap_system_groups_base}" \
+                              "${account_distinguished_name}"                \
+                              "Members of ${system_group}"
+    done
+
+    exit 0
+fi
+
+
+#-----------------------------------------------------------
+# People and alias-only entries
+#-----------------------------------------------------------
+
+if [[ -z "${domain_name}" ]]
+then
+    read -p "Name of the domain this entry belongs to: " -r domain_name
+fi
+
+# An alias-only entry is named by its common name, since it has no login and
+# so no associated user identifier. That name also corresponds to the local
+# part of an email address, which requires validating it as such.
+if [[ ${is_alias_only} -ne 0 ]]
+then
+    if [[ -z "${user_common_name}" ]]
+    then
+        read -p "Common name of the address-only entry: " -r user_common_name
+    fi
+    if [[ ! "${user_common_name}" =~ ^[A-Za-z0-9._%+-]+$ ]]
+    then
+        echo "Failed to create alias-only entry \"${user_common_name}@${domain_name}\"." >&2
+        echo "An alias-only entry’s common name is also the local part of its email address," >&2
+        echo "which requires that it only use characters allows in an email address." >&2
+        exit 1
+    fi
+    naming_attribute="cn"
+    naming_value="${user_common_name}"
+else
+    if [[ -z "${user_identifier}" ]]
+    then
+        read -p "Identifier of the user: " -r user_identifier
+    fi
+    naming_attribute="uid"
+    naming_value="${user_identifier}"
+fi
+
+escaped_naming_value=$(ldap_escape_distinguished_name_value "${naming_value}")
+entry_distinguished_name="${naming_attribute}=${escaped_naming_value},ou=users,ou=$(ldap_escape_distinguished_name_value "${domain_name}"),${ldap_suffix}"
+
+object_classes=()
+additional_attributes=()
+
+# Every address the entry accepts is written out in full. The one implied by
+# the entry’s own name is included, so that no lookup has to reconstruct it.
+mail_local_addresses=()
+mail_local_addresses+=("$(ldap_qualified_mail_address "${naming_value}" "${domain_name}")")
+for mail_alias in "${user_mail_aliases[@]}"
+do
+    mail_local_addresses+=("$(ldap_qualified_mail_address "${mail_alias}" "${domain_name}")")
+done
+
+if [[ ${is_alias_only} -ne 0 ]]
+then
+    # No login, so nothing that describes a person: this is an address that
+    # forwards, and applicationProcess carries a common name and nothing else.
+    object_classes+=("objectClass: top")
+    object_classes+=("objectClass: applicationProcess")
+    object_classes+=("objectClass: inetLocalMailRecipient")
+
+    # No common name is added here: it is the naming attribute, and is written
+    # out once alongside the distinguished name below.
+
+    if [[ -z "${user_mail_destination}" ]]
+    then
+        read -p "Destination this address forwards to: " -r user_mail_destination
+    fi
+else
+    if [[ -z "${user_surname}" ]]
+    then
+        read -p "Surname (also known as family name): " -r user_surname
+    fi
+    if [[ -z "${user_common_name}" ]]
+    then
+        if [[ -n "${user_given_name}" ]]
+        then
+            user_common_name="${user_given_name} ${user_surname}"
+        else
+            user_common_name="${user_identifier}"
+        fi
+    fi
+
+    object_classes+=("objectClass: top")
+    object_classes+=("objectClass: person")
+    object_classes+=("objectClass: inetOrgPerson")
+    object_classes+=("objectClass: inetLocalMailRecipient")
+
+    additional_attributes+=("$(ldap_attribute "cn" "${user_common_name}")")
+    if [[ -n "${user_given_name}" ]]
+    then
+        additional_attributes+=("$(ldap_attribute "givenName" "${user_given_name}")")
+    fi
+    additional_attributes+=("$(ldap_attribute "sn" "${user_surname}")")
+
+    # The canonical published address, and the one a person signs in with.
+    # It is deliberately not a forwarding target: where mail leaves for is
+    # mailRoutingAddress and nothing else.
+    if [[ -z "${user_mail}" ]]
+    then
+        user_mail="${user_identifier}"
+    fi
+    user_mail=$(ldap_qualified_mail_address "${user_mail}" "${domain_name}")
+
+    # It does determine the canonical name for a local mailbox, though.
+    # A mail server delivering locally rewrites every address the entry
+    # accepts onto the published one before handing the message over to
+    # the mail delivery agent, so an entry associated with a local mailbox
+    # has to accept email for the address it publishes with the `mail`
+    # attribute; otherwise mail to each of its other addresses is rewritten
+    # to one that nothing accepts, and bounces. Only an explicit --mail can
+    # get this wrong, since the default is the first address the entry accepts.
+    if [[ -z "${user_mail_destination}" ]] && \
+       [[ ! " ${mail_local_addresses[*]} " == *" ${user_mail} "* ]]
+    then
+        echo "Failed to create \"${entry_distinguished_name}\"." >&2
+        echo "This entry is associated with a local mailbox because it was created" >&2
+        echo "without --mail-destination, so \"${user_mail}\" cannot be the" >&2
+        echo "mail address it publishes without also being one that it accepts mail for:" >&2
+        printf '  %s\n' "${mail_local_addresses[@]}" >&2
+        echo "Add it with --mail-alias, or remove the --mail option to use the default" >&2
+        echo "value of ${user_identifier}@${domain_name} for the mail attribute." >&2
+        exit 1
+    fi
+
+    if [[ -z "${user_password}" ]]
+    then
+        read -p "Password for ${entry_distinguished_name}: " -r -s user_password
+        echo >&2
+        read -p "Re-enter password: " -r -s confirmation_entry
+        echo >&2
+        if [[ "${user_password}" != "${confirmation_entry}" ]]
+        then
+            echo "Password values do not match." >&2
+            exit 1
+        fi
+    fi
+    if [[ -n "${user_password}" ]]
+    then
+        if [[ "${user_password}" == '$2a$'* ]]
+        then
+            encrypted_password="{CRYPT}${user_password}"
+        else
+            encrypted_password=$(slappasswd -h "{CRYPT}" -c '$2a$12$%.22s' -s "${user_password}")
+        fi
+        additional_attributes+=("$(ldap_attribute "userPassword" "${encrypted_password}")")
+    fi
+
+    # Resolved and checked further above, but written out here, after the
+    # password, so that the entry reads as identity, then credential, then
+    # everything about mail together, rather than splitting the mail
+    # attributes around the password.
+    additional_attributes+=("$(ldap_attribute "mail" "${user_mail}")")
+fi
+
+for mail_local_address in "${mail_local_addresses[@]}"
+do
+    additional_attributes+=("$(ldap_attribute "mailLocalAddress" "${mail_local_address}")")
+done
+
+# A routing address means the mail goes elsewhere, and its absence means there
+# is a mailbox here. That is the whole of the distinction; no flag records it.
+if [[ -n "${user_mail_destination}" ]]
+then
+    qualified_destination=$(ldap_qualified_mail_address "${user_mail_destination}" "${domain_name}")
+    additional_attributes+=("$(ldap_attribute "mailRoutingAddress" "${qualified_destination}")")
+fi
+
+# The one thing that cannot be derived: an account with a password and a
+# routing address would otherwise look like someone who simply forwards their
+# mail, and would not be allowed to submit any.
+if [[ ${is_authenticated_sender} -ne 0 ]]
+then
+    object_classes+=("objectClass: virtualMailSender")
+fi
+
+combined_object_classes=$(ldap_combine_attributes "${object_classes[@]}")
+combined_additional_attributes=$(ldap_combine_attributes "${additional_attributes[@]}")
+
+ldap_perform_standard_add "
+dn: ${entry_distinguished_name}
+${combined_object_classes}
+$(ldap_attribute "${naming_attribute}" "${naming_value}")
+${combined_additional_attributes}
+" || exit 1
+
+# Groups of this entry’s own domain. Their display name carries the domain,
+# because two domains can each have a group of the same common name and an
+# application importing both sees one flat namespace.
+for domain_group in "${user_domain_groups[@]}"
+do
+    ldap_add_group_member "${domain_group}" "ou=groups,ou=$(ldap_escape_distinguished_name_value "${domain_name}"),${ldap_suffix}" \
+                          "${entry_distinguished_name}" \
+                          "Members of ${domain_group} in ${domain_name}" \
+                          "${domain_group}@${domain_name}"
+done
+
+# Groups that span every domain, which are commonly used to gate access to an
+# application: one instance serves all the domains, so its list of who may use
+# it cannot be per-tenant.
+# No display name is passed, so a group created here is not published.
+for system_group in "${user_system_groups[@]}"
+do
+    ldap_add_group_member "${system_group}" "${ldap_system_groups_base}" \
+                          "${entry_distinguished_name}" \
+                          "Members of ${system_group}"
+done
+

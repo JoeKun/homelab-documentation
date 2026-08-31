@@ -1,0 +1,35 @@
+ldap_create_domain --domain "my_domain.tld" --mailbox-domain \
+                   --essential-aliases-destination "admin"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: organizationalUnit
+objectClass: domainRelatedObject
+objectClass: virtualMailboxDomain
+ou: my_domain.tld
+associatedDomain: my_domain.tld
+
+dn: ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: organizationalUnit
+ou: groups
+
+dn: cn=postmaster,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: applicationProcess
+objectClass: inetLocalMailRecipient
+cn: postmaster
+description: Essential aliases for my_domain.tld
+mailLocalAddress: postmaster@my_domain.tld
+mailLocalAddress: abuse@my_domain.tld
+mailLocalAddress: hostmaster@my_domain.tld
+mailLocalAddress: webmaster@my_domain.tld
+mailRoutingAddress: admin@my_domain.tld

@@ -1,4 +1,4 @@
-# Configuring firewall for FreeBSD with `pf`
+# Configuring firewall with `pf` on FreeBSD
 
 FreeBSD’s built-in firewall `pf` can be used to protect your server against unintended network activity.
 

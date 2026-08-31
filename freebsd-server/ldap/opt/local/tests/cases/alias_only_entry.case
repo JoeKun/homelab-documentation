@@ -1,0 +1,18 @@
+# The common name is the first address the entry answers to, so it appears in
+# mailLocalAddress without having to be given again.
+ldap_create_user --domain "my_domain.tld" --alias-only --cn "contact"   \
+                 --mail-alias "support" --mail-alias "feedback"         \
+                 --mail-destination "my_username"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: cn=contact,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: applicationProcess
+objectClass: inetLocalMailRecipient
+cn: contact
+mailLocalAddress: contact@my_domain.tld
+mailLocalAddress: support@my_domain.tld
+mailLocalAddress: feedback@my_domain.tld
+mailRoutingAddress: my_username@my_domain.tld

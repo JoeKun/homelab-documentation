@@ -1,0 +1,204 @@
+#! /usr/bin/env bash
+#
+# ldap_create_domain
+#
+# Created by Joel Lopes Da Silva on 1/1/18.
+# Copyright © 2018-2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Capture script container directory
+pushd $(dirname "${0}") > /dev/null
+script_container_directory=$(pwd)
+popd > /dev/null
+
+# Imports
+. "${script_container_directory}/../lib/ldap_standard_utilities"
+
+
+# The aliases a mail domain is expected to answer at: postmaster is required
+# by RFC 5321, and the rest are the conventions RFC 2142 describes.
+essential_alias_local_parts=("postmaster" "abuse" "hostmaster" "webmaster")
+
+
+#-----------------------------------------------------------
+# Usage
+#-----------------------------------------------------------
+
+function print_usage() {
+    cat << 'EOF'
+Usage: ldap_create_domain --domain <name> [--mailbox-domain | --alias-domain]
+                          [--essential-aliases-destination <address>]
+
+Create a domain, along with the branches its users and groups live in. A
+domain given neither mail flag holds accounts but is not eligible for mail
+delivery.
+
+Options:
+  --domain <name>
+        The domain to create. Prompted for when it is not given.
+
+  --mailbox-domain
+        Mail addressed to this domain may be delivered to a local mailbox.
+        Such a domain accepts aliases as well, so this is the usual choice.
+
+  --alias-domain
+        Every address in this domain has to forward somewhere else.
+        Cannot be combined with --mailbox-domain.
+
+  --essential-aliases-destination <address>
+        Also create the entry answering for postmaster, abuse, hostmaster and
+        webmaster in this domain, forwarding all four to <address>. A bare
+        local part is qualified with this domain. Requires one of the two
+        flags above.
+
+  -h, --help
+        Print this message and exit.
+EOF
+}
+
+
+#-----------------------------------------------------------
+# Parse arguments
+#-----------------------------------------------------------
+
+domain_name=""
+mailbox_domain_enabled=0
+alias_domain_enabled=0
+essential_aliases_destination=""
+
+number_of_arguments=$#
+for ((i = 1; i <= ${number_of_arguments}; i++))
+do
+    current_argument="${!i}"
+    case "${current_argument}" in
+        "-h"|"--help")
+            print_usage
+            exit 0
+            ;;
+        "--domain")
+            i=$((i + 1))
+            domain_name="${!i}"
+            ;;
+        "--mailbox-domain")
+            mailbox_domain_enabled=1
+            ;;
+        "--alias-domain")
+            alias_domain_enabled=1
+            ;;
+        "--essential-aliases-destination")
+            i=$((i + 1))
+            essential_aliases_destination="${!i}"
+            ;;
+        *)
+            echo "Unrecognized option \"${current_argument}\"." >&2
+            echo "Run ldap_create_domain --help for the options it accepts." >&2
+            exit 1
+            ;;
+    esac
+done
+
+
+#-----------------------------------------------------------
+# Prompt interactively for missing arguments
+#-----------------------------------------------------------
+
+if [[ -z "${domain_name}" ]]
+then
+    read -p "Name of domain to add to LDAP directory: " -r domain_name
+fi
+
+if [[ ${mailbox_domain_enabled} -ne 0 ]] && [[ ${alias_domain_enabled} -ne 0 ]]
+then
+    echo "Failed to create domain \"${domain_name}\"." >&2
+    echo "A domain cannot be both an alias only domain and a mailbox domain." >&2
+    echo "Please consider creating this domain with --mailbox-domain only." >&2
+    exit 1
+fi
+
+if [[ -n "${essential_aliases_destination}" ]] && \
+   [[ ${mailbox_domain_enabled} -eq 0 ]] && [[ ${alias_domain_enabled} -eq 0 ]]
+then
+    echo "Failed to create domain \"${domain_name}\"." >&2
+    echo "Essential aliases are only supported for a domain that supports" >&2
+    echo "mail delivery. Please consider adding the option --alias-domain." >&2
+    exit 1
+fi
+
+
+#-----------------------------------------------------------
+# Perform LDAP directory changes
+#-----------------------------------------------------------
+
+escaped_domain_name=$(ldap_escape_distinguished_name_value "${domain_name}")
+domain_base="ou=${escaped_domain_name},${ldap_suffix}"
+
+# The domain name is kept whole in associatedDomain rather than split into
+# dc components: it is data here, not the root of the tree, and every lookup
+# arrives with the full name.
+domain_object_classes=()
+domain_object_classes+=("objectClass: top")
+domain_object_classes+=("objectClass: organizationalUnit")
+domain_object_classes+=("objectClass: domainRelatedObject")
+if [[ ${mailbox_domain_enabled} -ne 0 ]]
+then
+    domain_object_classes+=("objectClass: virtualMailboxDomain")
+fi
+if [[ ${alias_domain_enabled} -ne 0 ]]
+then
+    domain_object_classes+=("objectClass: virtualMailAliasDomain")
+fi
+combined_domain_object_classes=$(ldap_combine_attributes "${domain_object_classes[@]}")
+
+ldap_perform_standard_add "
+dn: ${domain_base}
+${combined_domain_object_classes}
+$(ldap_attribute "ou" "${domain_name}")
+$(ldap_attribute "associatedDomain" "${domain_name}")
+
+dn: ou=users,${domain_base}
+objectClass: top
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,${domain_base}
+objectClass: top
+objectClass: organizationalUnit
+ou: groups
+" || exit 1
+
+if [[ -n "${essential_aliases_destination}" ]]
+then
+    qualified_destination=$(ldap_qualified_mail_address "${essential_aliases_destination}" \
+                                                        "${domain_name}")
+    essential_alias_attributes=()
+    for local_part in "${essential_alias_local_parts[@]}"
+    do
+        essential_alias_attributes+=("$(ldap_attribute "mailLocalAddress" \
+                                                       "${local_part}@${domain_name}")")
+    done
+
+    # Named for the one address RFC 5321 actually requires of a mail domain.
+    ldap_perform_standard_add "
+dn: cn=postmaster,ou=users,${domain_base}
+objectClass: top
+objectClass: applicationProcess
+objectClass: inetLocalMailRecipient
+cn: postmaster
+description: Essential aliases for ${domain_name}
+$(ldap_combine_attributes "${essential_alias_attributes[@]}")
+$(ldap_attribute "mailRoutingAddress" "${qualified_destination}")
+"
+fi
+

@@ -1,0 +1,11 @@
+# The refusal happens while the arguments are read, so nothing is created and
+# nothing is prompted for.
+ldap_create_domain --domain "my_domain.tld" --mailbox-domian
+
+# Expected exit status: 1
+# Expected error output:
+
+Unrecognized option "--mailbox-domian".
+Run ldap_create_domain --help for the options it accepts.
+
+# Expected LDIF:

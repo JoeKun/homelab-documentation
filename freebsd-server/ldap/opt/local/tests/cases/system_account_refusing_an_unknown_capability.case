@@ -1,0 +1,17 @@
+# The capabilities are exactly the groups the access controls in slapd.ldif
+# name, so a name outside that set is a typo. Creating it would produce a group
+# no access control mentions, and the account would be refused every attribute
+# the capability was meant to grant, with nothing saying why. Nothing at all is
+# created: the capabilities are resolved before the account is added.
+ldap_create_user --system --cn "my_service" --user-password "secret"    \
+                 --capability "mail-routing-reader"
+
+# Expected exit status: 1
+# Expected error output:
+
+Failed to create the system account "my_service".
+There is no "mail-routing-reader" capability. The capabilities are the groups
+named by the access controls in slapd.ldif, and are created along with the
+rest of the directory by ldap_create_top_level_directory_and_system_entries.
+
+# Expected LDIF:

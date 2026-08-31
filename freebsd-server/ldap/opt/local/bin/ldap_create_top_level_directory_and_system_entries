@@ -1,0 +1,197 @@
+#! /usr/bin/env bash
+#
+# ldap_create_top_level_directory_and_system_entries
+#
+# Created by Joel Lopes Da Silva on 1/1/18.
+# Copyright © 2018-2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Capture script container directory
+pushd $(dirname "${0}") > /dev/null
+script_container_directory=$(pwd)
+popd > /dev/null
+
+# Imports
+. "${script_container_directory}/../lib/ldap_standard_utilities"
+
+
+#-----------------------------------------------------------
+# Usage
+#-----------------------------------------------------------
+
+function print_usage() {
+    cat << 'EOF'
+Usage: ldap_create_top_level_directory_and_system_entries
+           [--administrator-password <password>]
+
+Create the entries the server configuration names by distinguished name and
+would otherwise miss in silence: the organization at the root of the
+directory, the system branches beneath it, the administrator the first access
+control grants "manage" rights to, and the five capability groups the
+subsequent access controls grant "read" rights to.
+
+Run this once, as root, before anything else. In particular it has to run
+before any ldap_create_user --system, which refuses a capability whose group
+does not exist rather than creating one.
+
+Options:
+  --administrator-password <password>
+        Password for cn=admin, the entry a graphical client signs in as.
+        Prompted for twice, without echo, when it is not given.
+
+  -h, --help
+        Print this message and exit.
+EOF
+}
+
+
+#-----------------------------------------------------------
+# Parse arguments
+#-----------------------------------------------------------
+
+administrator_password=""
+
+number_of_arguments=$#
+for ((i = 1; i <= ${number_of_arguments}; i++))
+do
+    current_argument="${!i}"
+    case "${current_argument}" in
+        "-h"|"--help")
+            print_usage
+            exit 0
+            ;;
+        "--administrator-password")
+            i=$((i + 1))
+            administrator_password="${!i}"
+            ;;
+        *)
+            echo "Unrecognized option \"${current_argument}\"." >&2
+            echo "Run ldap_create_top_level_directory_and_system_entries --help" >&2
+            echo "for the options it accepts." >&2
+            exit 1
+            ;;
+    esac
+done
+
+
+#-----------------------------------------------------------
+# Prompt interactively for missing arguments
+#-----------------------------------------------------------
+
+if [[ -z "${administrator_password}" ]]
+then
+    read -p "Password for the LDAP directory administrator: " -r -s administrator_password
+    echo
+    read -p "Re-enter password for the LDAP directory administrator: " -r -s confirmation_entry
+    echo
+    if [[ "${administrator_password}" != "${confirmation_entry}" ]]
+    then
+        echo "Password values do not match."
+        exit 1
+    fi
+fi
+
+
+#-----------------------------------------------------------
+# Perform LDAP directory changes
+#-----------------------------------------------------------
+
+encrypted_administrator_password=$(slappasswd -h "{CRYPT}" -c '$2a$12$%.22s' \
+                                              -s "${administrator_password}")
+
+# The suffix is an organization rather than a domain component: no single one
+# of the domains served owns the LDAP directory.
+organization_name="${ldap_suffix#o=}"
+
+administrator_distinguished_name="cn=admin,${ldap_system_users_base}"
+
+# What this creates is everything the server configuration names by
+# distinguished name and would otherwise miss in silence: the administrator the
+# first access control grants "manage" rights to, and the five capability
+# groups the subsequent access controls grant "read" rights to.
+#
+# groupOfNames cannot be empty, so each group is seeded with the administrator.
+# That grants nothing new, since the first access control already gives that
+# entry "manage" rights over the whole LDAP directory.
+ldap_perform_standard_add "
+dn: ${ldap_suffix}
+objectClass: top
+objectClass: organization
+$(ldap_attribute "o" "${organization_name}")
+
+dn: ${ldap_system_base}
+objectClass: top
+objectClass: organizationalUnit
+ou: system
+
+dn: ${ldap_system_users_base}
+objectClass: top
+objectClass: organizationalUnit
+ou: users
+
+dn: ${ldap_system_groups_base}
+objectClass: top
+objectClass: organizationalUnit
+ou: groups
+
+dn: ${ldap_system_capabilities_base}
+objectClass: top
+objectClass: organizationalUnit
+ou: capabilities
+
+dn: ${administrator_distinguished_name}
+objectClass: top
+objectClass: applicationProcess
+objectClass: simpleSecurityObject
+cn: admin
+description: LDAP directory administrator
+$(ldap_attribute "userPassword" "${encrypted_administrator_password}")
+
+dn: cn=service-accounts,${ldap_system_capabilities_base}
+objectClass: top
+objectClass: groupOfNames
+cn: service-accounts
+description: Accounts allowed to read the structural attributes every client needs
+$(ldap_attribute "member" "${administrator_distinguished_name}")
+
+dn: cn=user-authenticators,${ldap_system_capabilities_base}
+objectClass: top
+objectClass: groupOfNames
+cn: user-authenticators
+description: Accounts allowed to read user identifiers for authentication purposes
+$(ldap_attribute "member" "${administrator_distinguished_name}")
+
+dn: cn=mail-routing-readers,${ldap_system_capabilities_base}
+objectClass: top
+objectClass: groupOfNames
+cn: mail-routing-readers
+description: Accounts allowed to read which addresses exist and where their mail goes
+$(ldap_attribute "member" "${administrator_distinguished_name}")
+
+dn: cn=group-membership-readers,${ldap_system_capabilities_base}
+objectClass: top
+objectClass: groupOfNames
+cn: group-membership-readers
+description: Accounts allowed to read group membership and the names groups are imported under
+$(ldap_attribute "member" "${administrator_distinguished_name}")
+
+dn: cn=user-profile-readers,${ldap_system_capabilities_base}
+objectClass: top
+objectClass: groupOfNames
+cn: user-profile-readers
+description: Accounts allowed to read the personal details an application displays
+$(ldap_attribute "member" "${administrator_distinguished_name}")
+"
+

@@ -1,0 +1,35 @@
+# /opt/local/etc/openldap/schema/published_group.schema
+
+#-----------------------------------------------------------------------
+# Schema OID
+#-----------------------------------------------------------------------
+
+objectIdentifier publishedGroupSchemaOID 1.3.6.1.4.1.4203.666.57
+
+
+#-----------------------------------------------------------------------
+# Classes
+#-----------------------------------------------------------------------
+
+# Applications that import groups need one unique name per group, taken
+# from a single attribute. Within a domain the common name is enough,
+# but two domains can each have a cn=admin, so something directory-wide
+# is required. For this purpose, we can use the existing built-in attribute
+# displayName.
+#
+# This class, publishedGroup, carries no new attribute beyond displayName
+# and exists so that the uniqueness constraint and the applications
+# importing groups have something precise to select on.
+#
+# Groups without it stay invisible to applications, which is what keeps the
+# groups mapping to specific capabilities out of sight.
+#
+# Uniqueness itself is not expressible in schema; instead, the unique
+# overlay enforces it, scoped to entries carrying this class.
+
+objectClass ( publishedGroupSchemaOID:101
+    NAME 'publishedGroup'
+    DESC 'Group published to the applications the directory serves'
+    SUP top AUXILIARY
+    MUST ( displayName ) )
+

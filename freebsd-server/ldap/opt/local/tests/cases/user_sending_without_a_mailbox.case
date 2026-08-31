@@ -1,0 +1,24 @@
+# A password and a routing address together describe something that submits
+# mail but receives none. That combination is indistinguishable from a person
+# who simply forwards their mail, so --authenticated-sender states it.
+ldap_create_user --domain "my_domain.tld" --uid "scanner"           \
+                 --cn "Fancy Scanner" --surname "Scanner"           \
+                 --mail-destination "admin" --authenticated-sender  \
+                 --user-password "secret"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=scanner,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+objectClass: virtualMailSender
+uid: scanner
+cn: Fancy Scanner
+sn: Scanner
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: scanner@my_domain.tld
+mailLocalAddress: scanner@my_domain.tld
+mailRoutingAddress: admin@my_domain.tld

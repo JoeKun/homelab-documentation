@@ -1,0 +1,173 @@
+#! /usr/bin/env bash
+
+# An example of populating the LDAP directory.
+#
+# This script is meant to be run as root: every command below authenticates
+# over the Unix socket with the credentials of its own process, so there
+# is no password to pass around.
+
+#-----------------------------------------------------------
+# System entries and users
+#-----------------------------------------------------------
+
+# Pre-requisite: you must first run this command to bootstrap the LDAP
+# directory.
+# If you run this command in an interactive shell, rather than as part
+# of a script, then you can omit the --administrator-password option
+# on the command line, and you will be prompted for that password
+# interactively instead.
+#ldap_create_top_level_directory_and_system_entries                  \
+#                 --administrator-password "C00l@dm1nistra0r!"
+
+# The system accounts services bind as, each granted only the attributes it
+# reads. Membership of `service-accounts` is added automatically.
+
+# my_mail_transfer_agent is given no password: it authenticates as
+# the my_mail_transfer_agent user over the socket. --socket-account
+# reads that account’s numeric identifier from this machine and
+# writes the map onto its entry, so the package that includes
+# my_mail_transfer_agent has to be installed before this line runs.
+ldap_create_user --system --cn "my_mail_transfer_agent"             \
+                 --socket-account "my_mail_transfer_agent"          \
+                 --capability "mail-routing-readers"
+
+ldap_create_user --system --cn "my_mail_delivery_agent"             \
+                 --user-password "SomeThing@1234"                   \
+                 --capability "user-authenticators"                 \
+                 --capability "mail-routing-readers"
+
+ldap_create_user --system --cn "my_web_server"                      \
+                 --user-password "sOMEtHING@1234"                   \
+                 --capability "user-authenticators"                 \
+                 --capability "group-membership-readers"
+
+ldap_create_user --system --cn "my_application"                     \
+                 --user-password "sOMEtHING@1234?"                  \
+                 --capability "user-authenticators"                 \
+                 --capability "group-membership-readers"            \
+                 --capability "user-profile-readers"
+
+
+#-----------------------------------------------------------
+# my_domain.tld primary domain and administrator
+#-----------------------------------------------------------
+
+# A domain whose mail is delivered locally. The essential aliases are the
+# entry answering for postmaster, abuse, hostmaster and webmaster; each domain
+# needs its own now that addresses are stored fully qualified.
+ldap_create_domain --domain "my_domain.tld" --mailbox-domain        \
+                   --essential-aliases-destination "admin"
+
+ldap_create_user --domain "my_domain.tld" --uid "admin"             \
+                 --cn "Administrator" --surname "Administrator"     \
+                 --mail-destination "john@external-domain.tld"      \
+                 --user-password "admin_password"
+
+
+#-----------------------------------------------------------
+# System groups to gate access to server applications
+#-----------------------------------------------------------
+
+# System-wide groups can be used to gate access to an application, and live
+# beside the service accounts rather than under a domain: one instance of
+# an application serves every domain here, so the list of who may sign into
+# it cannot belong to a single tenant.
+
+# A groupOfNames in LDAP cannot be empty, so each group is declared with
+# the administrator above and everyone else joins as they are created.
+
+ldap_create_group --system --cn "my_application"                    \
+                  --description "my_application users"              \
+                  --member "uid=admin,ou=users,ou=my_domain.tld,o=homelab"
+
+# Some applications may be able to use a second group for users who have
+# administrative privileges for that application. This can be modeled as
+# a system group that is explicitly published so it can be visible to the
+# application.
+ldap_create_group --system --cn "my_application-admins" --published \
+                  --description "my_application administrators"     \
+                  --member "uid=admin,ou=users,ou=my_domain.tld,o=homelab"
+
+ldap_create_group --system --cn "my_other_application"              \
+                  --description "my_other_application users"        \
+                  --member "uid=admin,ou=users,ou=my_domain.tld,o=homelab"
+
+
+#-----------------------------------------------------------
+# my_domain.tld primary domain continuation
+#-----------------------------------------------------------
+
+# The rest of the domain. --system-group joins a group declared above, which
+# is how access to an application is granted as each person is created.
+ldap_create_user --domain "my_domain.tld" --uid "john"              \
+                 --given-name "John" --surname "Smith"              \
+                 --mail-destination "john@external-domain.tld"      \
+                 --system-group "my_application"                    \
+                 --system-group "my_other_application"              \
+                 --user-password "john_password"
+
+ldap_create_user --domain "my_domain.tld" --uid "amy"               \
+                 --given-name "Amy" --surname "Goodman"             \
+                 --system-group "my_application"                    \
+                 --system-group "my_other_application"              \
+                 --user-password "amy_password"
+
+ldap_create_user --domain "my_domain.tld" --uid "noam"              \
+                 --given-name "Noam" --surname "Chomsky"            \
+                 --system-group "my_application"                    \
+                 --user-password "noam_password"
+
+# A scanner with no mailbox of its own, which still has to submit scans.
+ldap_create_user --domain "my_domain.tld" --uid "scanner"           \
+                 --cn "Fancy Scanner" --surname "Scanner"           \
+                 --mail-destination "john"                          \
+                 --authenticated-sender                             \
+                 --user-password "scanner_password"
+
+# Addresses that forward and cannot be signed in to.
+ldap_create_user --domain "my_domain.tld"  --cn "contact"           \
+                 --alias-only                                       \
+                 --mail-alias "outreach"                            \
+                 --mail-alias "contribute"                          \
+                 --mail-destination "john"
+
+ldap_create_group --domain "my_domain.tld" --cn "admin"             \
+                  --member "admin"
+
+ldap_create_group --domain "my_domain.tld" --cn "writers"           \
+                  --member "amy"                                    \
+                  --member "noam"
+
+# Group membership can also be given when the entry is created. Two scopes:
+# --member-of names a group of the entry’s own domain, while --system-group
+# names one that spans every domain, which is where access to an application
+# belongs since a single instance of it serves all of them.
+#
+#   ldap_create_user --domain "my_domain.tld" --uid "juan"          \
+#                    --given-name "Juan" --surname "Gonzalez"       \
+#                    --member-of "writers"                          \
+#                    --system-group "my_application"
+
+
+#-----------------------------------------------------------
+# my_other_domain.xyz domain
+#-----------------------------------------------------------
+
+# A domain that only forwards, with no mailboxes of its own.
+ldap_create_domain --domain "my_other_domain.xyz" --alias-domain
+
+# A person of the second domain, and the point of a system-wide group: one
+# instance of my_application serves both domains, so its members come from
+# both. Mail forwards because this domain holds no mailboxes, which does not
+# stop her signing into an application.
+ldap_create_user --domain "my_other_domain.xyz" --uid "maria"       \
+                 --given-name "Maria" --surname "Ressa"             \
+                 --mail-destination "maria@external-domain.tld"     \
+                 --system-group "my_application"                    \
+                 --system-group "my_other_application"              \
+                 --user-password "maria_password"
+
+ldap_create_user --domain "my_other_domain.xyz" --cn "contact"      \
+                 --alias-only                                       \
+                 --mail-destination "amy@my_domain.tld"
+

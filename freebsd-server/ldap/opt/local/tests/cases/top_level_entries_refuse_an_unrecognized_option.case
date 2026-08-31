@@ -1,0 +1,11 @@
+ldap_create_top_level_directory_and_system_entries \
+    --root-dn-password "secret"
+
+# Expected exit status: 1
+# Expected error output:
+
+Unrecognized option "--root-dn-password".
+Run ldap_create_top_level_directory_and_system_entries --help
+for the options it accepts.
+
+# Expected LDIF:

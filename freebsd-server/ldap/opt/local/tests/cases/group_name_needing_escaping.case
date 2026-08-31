@@ -1,0 +1,16 @@
+# The common name has to be escaped in the distinguished name, and cannot be
+# turned into a display name on its own, so one is given explicitly.
+ldap_create_group --domain "my_domain.tld" --cn "engineering, west" \
+                  --display-name "engineering-west@my_domain.tld"   \
+                  --member "my_username"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: cn=engineering\, west,ou=groups,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: groupOfNames
+objectClass: publishedGroup
+cn: engineering, west
+displayName: engineering-west@my_domain.tld
+member: uid=my_username,ou=users,ou=my_domain.tld,o=homelab

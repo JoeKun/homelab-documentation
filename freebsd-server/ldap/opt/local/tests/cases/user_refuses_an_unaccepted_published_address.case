@@ -1,0 +1,22 @@
+# A mail server delivering locally rewrites every address the entry accepts
+# into the published one, so publishing an address the entry does not accept
+# would send mail to all its other addresses somewhere nothing receives it.
+ldap_create_user --domain "my_domain.tld" --uid "my_username"   \
+                 --given-name "John" --surname "Smith"          \
+                 --mail-alias "john.smith"                      \
+                 --mail "john@my_other_domain.xyz"              \
+                 --user-password "secret"
+
+# Expected exit status: 1
+# Expected error output:
+
+Failed to create "uid=my_username,ou=users,ou=my_domain.tld,o=homelab".
+This entry is associated with a local mailbox because it was created
+without --mail-destination, so "john@my_other_domain.xyz" cannot be the
+mail address it publishes without also being one that it accepts mail for:
+  my_username@my_domain.tld
+  john.smith@my_domain.tld
+Add it with --mail-alias, or remove the --mail option to use the default
+value of my_username@my_domain.tld for the mail attribute.
+
+# Expected LDIF:

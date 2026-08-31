@@ -1,0 +1,18 @@
+# /opt/local/etc/openldap/schema/virtual_mail.ldif
+
+# This file was automatically generated from virtual_mail.schema;
+# see that file for complete references.
+
+dn: cn=virtual_mail,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: virtual_mail
+olcObjectIdentifier: virtualMailSchemaOID 1.3.6.1.4.1.4203.666.49
+olcObjectClasses: ( virtualMailSchemaOID:102 NAME 'virtualMailboxDomain' DE
+ SC 'Domain whose mail may be delivered to local mailboxes' SUP top AUXILIARY 
+ )
+olcObjectClasses: ( virtualMailSchemaOID:103 NAME 'virtualMailAliasDomain' 
+ DESC 'Domain whose addresses must all resolve to an alias' SUP top AUXILIARY 
+ )
+olcObjectClasses: ( virtualMailSchemaOID:104 NAME 'virtualMailSender' DESC 
+ 'Account allowed to submit authenticated mail without a local mailbox' SUP to
+ p AUXILIARY )

@@ -130,7 +130,7 @@ Here’s a quick description of what you should do in the first few dialogs of t
 	 - For example, if you live in California, you may want to select the *Pacific* timezone.
  - **Partition disks**
 	 - You may be asked to wait a few seconds here with messages like:
-		 - *‌Loading additional components*
+		 - *Loading additional components*
 		 - *Starting up the partitioner*
 	 - When asked to select the *Partitioning method*, select the *Guided - use entire disk* method.
 	 - Select the desired disk corresponding to the second USB flash drive.
@@ -146,7 +146,7 @@ Here’s a quick description of what you should do in the first few dialogs of t
 	 - Select the *Debian archive mirror* that is closest to you, such as *deb.debian.org*.
 	 - Enter any relevant HTTP proxy information if needed.
 	 - You may be asked to wait a few minutes here with messages like:
-		 - *‌Configuring apt*
+		 - *Configuring apt*
 		 - *Select and install software*
  - **Configuring popularity-contest**
 	 - When asked whether you want to *Participate in the package usage survey*, select *No*.

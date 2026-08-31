@@ -1,0 +1,16 @@
+# Root reaches cn=config under its own unmapped name, and that is the only
+# access the server’s configuration grants to anyone. Mapping root onto an
+# entry would rewrite the name every one of its connections arrives under, and
+# the first thing to become unreachable would be the configuration holding the
+# mapping. Refusing here makes that trap unreachable.
+ldap_create_user --system --cn "my_mail_service"            \
+                 --socket-account "root"
+
+# Expected exit status: 1
+# Expected error output:
+
+Refusing to map the root account.
+Root reaches cn=config under its own name, so mapping it onto an entry
+would leave nobody able to change the server’s configuration.
+
+# Expected LDIF:

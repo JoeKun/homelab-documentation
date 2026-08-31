@@ -1,0 +1,22 @@
+ldap_create_domain --domain "my_other_domain.xyz" --alias-domain
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: ou=my_other_domain.xyz,o=homelab
+objectClass: top
+objectClass: organizationalUnit
+objectClass: domainRelatedObject
+objectClass: virtualMailAliasDomain
+ou: my_other_domain.xyz
+associatedDomain: my_other_domain.xyz
+
+dn: ou=users,ou=my_other_domain.xyz,o=homelab
+objectClass: top
+objectClass: organizationalUnit
+ou: users
+
+dn: ou=groups,ou=my_other_domain.xyz,o=homelab
+objectClass: top
+objectClass: organizationalUnit
+ou: groups

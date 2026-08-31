@@ -1,0 +1,22 @@
+# mailRoutingAddress is used to specify where email is redirected externally.
+ldap_create_user --domain "my_domain.tld" --uid "my_other_username" \
+                 --given-name "Jane" --surname "Smith"              \
+                 --mail-destination "jane@external-domain.tld"      \
+                 --user-password "secret"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=my_other_username,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+uid: my_other_username
+cn: Jane Smith
+givenName: Jane
+sn: Smith
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: my_other_username@my_domain.tld
+mailLocalAddress: my_other_username@my_domain.tld
+mailRoutingAddress: jane@external-domain.tld

@@ -1,0 +1,26 @@
+# Nothing rewrites the addresses of an entry that forwards mail externally, so
+# it may publish an address of its own elsewhere.
+# Only an entry associated with a local mailbox is bound to publish a mail
+# address that it accepts email for.
+ldap_create_user --domain "my_domain.tld" --uid "my_other_username" \
+                 --given-name "Jane" --surname "Smith"              \
+                 --mail "jane@external-domain.tld"                  \
+                 --mail-destination "jane@external-domain.tld"      \
+                 --user-password "secret"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=my_other_username,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+uid: my_other_username
+cn: Jane Smith
+givenName: Jane
+sn: Smith
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: jane@external-domain.tld
+mailLocalAddress: my_other_username@my_domain.tld
+mailRoutingAddress: jane@external-domain.tld

@@ -1,0 +1,275 @@
+#! /usr/bin/env bash
+#
+# ldap_create_group
+#
+# Created by Joel Lopes Da Silva on 1/28/18.
+# Copyright © 2018-2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Capture script container directory
+pushd $(dirname "${0}") > /dev/null
+script_container_directory=$(pwd)
+popd > /dev/null
+
+# Imports
+. "${script_container_directory}/../lib/ldap_standard_utilities"
+
+
+#-----------------------------------------------------------
+# Usage
+#-----------------------------------------------------------
+
+function print_usage() {
+    cat << 'EOF'
+Usage: ldap_create_group [--domain <name> | --system] --cn <name>
+                         --member <member> [options]
+
+Create a group. Anything needed and not given is prompted for, members one at
+a time until an empty answer ends the list.
+
+Options:
+  --domain <name>
+        The domain the group belongs to.
+
+  --cn <name>
+        The group’s common name, which also names the entry.
+
+  --system
+        A group spanning every domain, living beside the service accounts
+        rather than under one tenant. This kind of group is commonly used to
+        gate access to applications on the server.
+        For different use-cases where you need a system group that is also
+        able to be imported by applications themselves, please consider using
+        the --published option as well.
+
+  --published
+        Publish this group to the applications the directory serves, under a
+        display name defaulting to <cn>.
+        Only meaningful with --system: a group associated with a specific
+        domain is published either way.
+        Beyond basic system-wide groups to gate access to applications on
+        the server, you may need to use a published system group to define
+        a certain role for an application, such as the administrators of
+        that application.
+
+  --member <member>
+        A member of the group. May be given more than once. A bare name is
+        taken to be a user of the group’s own domain; anything else needs a
+        full distinguished name beginning cn= or uid=. A groupOfNames cannot
+        be empty, so at least one member is required.
+
+  --display-name <name>
+        The name applications import this group under, which has to be unique
+        across the whole directory.
+        Providing a display name implies --published.
+        Defaults to <cn>@<domain>, or to <cn> for a published system group.
+        Only letters, digits and . - _ @ are accepted.
+
+  --description <text>
+        Free text describing what the group is for.
+
+  -h, --help
+        Print this message and exit.
+EOF
+}
+
+
+#-----------------------------------------------------------
+# Parse arguments
+#-----------------------------------------------------------
+
+domain_name=""
+group_common_name=""
+group_display_name=""
+group_description=""
+is_system_group=0
+is_published_group=0
+group_members=()
+
+number_of_arguments=$#
+for ((i = 1; i <= ${number_of_arguments}; i++))
+do
+    current_argument="${!i}"
+    case "${current_argument}" in
+        "-h"|"--help")
+            print_usage
+            exit 0
+            ;;
+        "--domain")
+            i=$((i + 1))
+            domain_name="${!i}"
+            ;;
+        "--cn")
+            i=$((i + 1))
+            group_common_name="${!i}"
+            ;;
+        "--display-name")
+            i=$((i + 1))
+            group_display_name="${!i}"
+            is_published_group=1
+            ;;
+        "--published")
+            is_published_group=1
+            ;;
+        "--description")
+            i=$((i + 1))
+            group_description="${!i}"
+            ;;
+        "--system")
+            is_system_group=1
+            ;;
+        "--member")
+            i=$((i + 1))
+            group_members+=("${!i}")
+            ;;
+        *)
+            echo "Unrecognized option \"${current_argument}\"." >&2
+            echo "Run ldap_create_group --help for the options it accepts." >&2
+            exit 1
+            ;;
+    esac
+done
+
+
+#-----------------------------------------------------------
+# Prompt interactively for missing arguments
+#-----------------------------------------------------------
+
+if [[ -z "${group_common_name}" ]]
+then
+    read -p "Name of group to add to LDAP directory: " -r group_common_name
+fi
+
+# A group belonging to an application spans every domain the application
+# serves, so it lives beside the service accounts rather than under a tenant.
+if [[ ${is_system_group} -ne 0 ]]
+then
+    group_base="${ldap_system_groups_base}"
+
+    # There is only one group of this name in the directory, so nothing has to
+    # be added to keep it apart from another. Whether it is published at all is
+    # a separate question, and the default is that it is not: see --published.
+    default_display_name="${group_common_name}"
+else
+    is_published_group=1
+
+    if [[ -z "${domain_name}" ]]
+    then
+        read -p "Name of the domain this group belongs to: " -r domain_name
+    fi
+    group_base="ou=groups,ou=$(ldap_escape_distinguished_name_value "${domain_name}"),${ldap_suffix}"
+
+    # Two domains can each have a cn=admin, and an application importing both
+    # sees one flat namespace, so the display name carries the domain. The
+    # separator is `@` because applications may accept only letters, digits,
+    # and `.-_@` in a group name.
+    default_display_name="${group_common_name}@${domain_name}"
+fi
+
+if [[ ${is_published_group} -eq 0 ]]
+then
+    group_display_name=""
+elif [[ -z "${group_display_name}" ]]
+then
+    group_display_name="${default_display_name}"
+fi
+
+if [[ -n "${group_display_name}" ]]
+then
+    ldap_validate_group_display_name "${group_display_name}" || exit 1
+fi
+
+if [[ ${#group_members[@]} -eq 0 ]]
+then
+    member_from_prompting=""
+    should_prompt_for_member=1
+    while [[ ${should_prompt_for_member} -ne 0 ]]
+    do
+        if [[ -z "${member_from_prompting}" ]]
+        then
+            read -p "Group member: " -r member_from_prompting
+        else
+            read -p "Additional group member (leave empty when done): " -r member_from_prompting
+        fi
+        if [[ -n "${member_from_prompting}" ]]
+        then
+            group_members+=("${member_from_prompting}")
+        else
+            should_prompt_for_member=0
+        fi
+    done
+fi
+
+if [[ ${#group_members[@]} -eq 0 ]]
+then
+    echo "A groupOfNames must have at least one member." >&2
+    exit 1
+fi
+
+
+#-----------------------------------------------------------
+# Perform LDAP directory changes
+#-----------------------------------------------------------
+
+escaped_common_name=$(ldap_escape_distinguished_name_value "${group_common_name}")
+group_distinguished_name="cn=${escaped_common_name},${group_base}"
+
+member_attributes=()
+for group_member in "${group_members[@]}"
+do
+    case "${group_member}" in
+        "cn="*|"uid="*)
+            member_distinguished_name="${group_member}"
+            ;;
+        *)
+            # A bare name is taken to be a user of this group’s own domain.
+            escaped_member=$(ldap_escape_distinguished_name_value "${group_member}")
+            member_distinguished_name="uid=${escaped_member},ou=users,ou=$(ldap_escape_distinguished_name_value "${domain_name}"),${ldap_suffix}"
+            ;;
+    esac
+    member_attributes+=("$(ldap_attribute "member" "${member_distinguished_name}")")
+done
+
+# publishedGroup is what makes a group visible to the applications that
+# import groups, and what slapo-unique scopes its constraint to.
+# Capability groups and the system groups that merely gate access to an
+# application are created without it, and stay out of sight.
+#
+# Assembled through ldap_combine_attributes so that an absent description does
+# not leave a blank line, which in LDIF would end the entry early.
+group_attributes=()
+group_attributes+=("objectClass: top")
+group_attributes+=("objectClass: groupOfNames")
+if [[ -n "${group_display_name}" ]]
+then
+    group_attributes+=("objectClass: publishedGroup")
+fi
+group_attributes+=("$(ldap_attribute "cn" "${group_common_name}")")
+if [[ -n "${group_display_name}" ]]
+then
+    group_attributes+=("$(ldap_attribute "displayName" "${group_display_name}")")
+fi
+if [[ -n "${group_description}" ]]
+then
+    group_attributes+=("$(ldap_attribute "description" "${group_description}")")
+fi
+group_attributes+=("${member_attributes[@]}")
+combined_group_attributes=$(ldap_combine_attributes "${group_attributes[@]}")
+
+ldap_perform_standard_add "
+dn: ${group_distinguished_name}
+${combined_group_attributes}
+"
+

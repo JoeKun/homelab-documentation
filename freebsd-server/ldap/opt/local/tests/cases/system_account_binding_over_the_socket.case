@@ -1,0 +1,30 @@
+# A service on this same machine authenticates over the Unix socket by the
+# credentials of its own process, so it needs no password. What makes that
+# work is a mapping in the server’s configuration, from the numeric user
+# identifier the socket reports onto this entry.
+ldap_create_user --system --cn "my_mail_service"            \
+                 --socket-account "my_mail_service"         \
+                 --capability "mail-routing-readers"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: cn=my_mail_service,ou=users,ou=system,o=homelab
+objectClass: top
+objectClass: applicationProcess
+cn: my_mail_service
+
+dn: cn=config
+changetype: modify
+add: olcAuthzRegexp
+olcAuthzRegexp: ^gidNumber=[0-9]+\+uidNumber=125,cn=peercred,cn=external,cn=auth$ cn=my_mail_service,ou=users,ou=system,o=homelab
+
+dn: cn=service-accounts,ou=capabilities,ou=system,o=homelab
+changetype: modify
+add: member
+member: cn=my_mail_service,ou=users,ou=system,o=homelab
+
+dn: cn=mail-routing-readers,ou=capabilities,ou=system,o=homelab
+changetype: modify
+add: member
+member: cn=my_mail_service,ou=users,ou=system,o=homelab

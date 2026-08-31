@@ -1,0 +1,12 @@
+# A group given an option it does not know would otherwise go on to prompt for
+# its members, which reads as though the command were understood.
+ldap_create_group --domain "my_domain.tld" --cn "admin" \
+                  --members "john"
+
+# Expected exit status: 1
+# Expected error output:
+
+Unrecognized option "--members".
+Run ldap_create_group --help for the options it accepts.
+
+# Expected LDIF:

@@ -1,0 +1,14 @@
+# A mistyped option used to be discarded in silence, which is the worst of both
+# outcomes: the command succeeds and the entry is created without the access it
+# was asked for. Nothing distinguishes that account from one deliberately
+# created with no capability at all.
+ldap_create_user --system --cn "my_service" --user-password "secret"    \
+                 --capabilty "mail-routing-readers"
+
+# Expected exit status: 1
+# Expected error output:
+
+Unrecognized option "--capabilty".
+Run ldap_create_user --help for the options it accepts.
+
+# Expected LDIF:

@@ -224,7 +224,7 @@ Now you’re finally ready to invoke `certbot` with the DNS RFC 2136 plugin to 
     -d my_domain.tld -d '*.my_domain.tld'
 ```
 
-If you have multiple domains you’d like to include in this SSL/TLS certificate, you can pass more `-d` arguments at the end. For example, to also include `my_other_domain.tld` and all of its first-level subdomains, you can invoke `certbot` like this.
+If you have multiple domains you’d like to include in this SSL/TLS certificate, you can pass more `-d` arguments at the end. For example, to also include `my_other_domain.xyz` and all of its first-level subdomains, you can invoke `certbot` like this.
 
 ```console
 # certbot certonly \
@@ -232,7 +232,7 @@ If you have multiple domains you’d like to include in this SSL/TLS certificate
     --dns-rfc2136-credentials /usr/local/etc/ssl/credentials/letsencrypt-dns-rfc2136-credentials.ini \
     --dns-rfc2136-propagation-seconds 180 \
     -d my_domain.tld -d '*.my_domain.tld' \
-    -d my_other_domain.tld -d '*.my_other_domain.tld'
+    -d my_other_domain.xyz -d '*.my_other_domain.xyz'
 ```
 
 When you run this command for the first time, `certbot` will automatically create an account for you, which requires you to provide your email address, and agree to the terms of service for Let’s Encrypt.
@@ -259,7 +259,7 @@ These files will be updated when the certificate renews.
 
 ### Expected `named` server logs
 
-You can confirm the dynamic updates were performed as expected by monitoring the `named` log file for the term `‌_acme-challenge`.
+You can confirm the dynamic updates were performed as expected by monitoring the `named` log file for the term `_acme-challenge`.
 
 ```console
 # tail -f /var/named/var/log/named.log | grep -i _acme-challenge
@@ -302,7 +302,7 @@ X509v3 Key Usage: critical
 X509v3 Extended Key Usage: 
     TLS Web Server Authentication
 X509v3 Subject Alternative Name: 
-    DNS:*.my_domain.tld, DNS:*.my_other_domain.tld, DNS:my_domain.tld, DNS:my_other_domain.tld
+    DNS:*.my_domain.tld, DNS:*.my_other_domain.xyz, DNS:my_domain.tld, DNS:my_other_domain.xyz
 ```
 
 

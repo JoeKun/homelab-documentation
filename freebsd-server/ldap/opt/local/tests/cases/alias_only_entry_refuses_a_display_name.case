@@ -1,0 +1,11 @@
+ldap_create_user --domain "my_domain.tld" --alias-only --cn "Smith, John" \
+                 --mail-destination "my_username"
+
+# Expected exit status: 1
+# Expected error output:
+
+Failed to create alias-only entry "Smith, John@my_domain.tld".
+An alias-only entry’s common name is also the local part of its email address,
+which requires that it only use characters allows in an email address.
+
+# Expected LDIF:

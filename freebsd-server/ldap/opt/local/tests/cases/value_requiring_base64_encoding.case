@@ -1,0 +1,21 @@
+# LDIF can only carry printable ASCII literally. Anything else is base64,
+# marked by the doubled colon; written literally it would be read back as
+# something else rather than rejected.
+ldap_create_user --domain "my_domain.tld" --uid "my_fourth_username" \
+                 --given-name "Joël" --surname "Dupré" --user-password "secret"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=my_fourth_username,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+uid: my_fourth_username
+cn:: Sm/Dq2wgRHVwcsOp
+givenName:: Sm/Dq2w=
+sn:: RHVwcsOp
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: my_fourth_username@my_domain.tld
+mailLocalAddress: my_fourth_username@my_domain.tld

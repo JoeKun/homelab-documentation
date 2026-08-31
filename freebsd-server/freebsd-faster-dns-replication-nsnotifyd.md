@@ -1,4 +1,4 @@
-# Faster DNS zone replication on FreeBSD with `nsnotifyd`
+# Faster DNS zone replication with `nsnotifyd` on FreeBSD
 
 Even with a [robust primary/secondary DNS server setup for your custom domain](freebsd-dns-bind.md), you may encounter issues with DNS zone replication to your secondary DNS servers being too slow.
 

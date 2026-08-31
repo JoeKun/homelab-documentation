@@ -1,0 +1,12 @@
+# /opt/local/etc/openldap/schema/published_group.ldif
+
+# This file was automatically generated from published_group.schema;
+# see that file for complete references.
+
+dn: cn=published_group,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: published_group
+olcObjectIdentifier: publishedGroupSchemaOID 1.3.6.1.4.1.4203.666.57
+olcObjectClasses: ( publishedGroupSchemaOID:101 NAME 'publishedGroup' DESC 
+ 'Group published to the applications the directory serves' SUP top AUXILIARY 
+ MUST displayName )

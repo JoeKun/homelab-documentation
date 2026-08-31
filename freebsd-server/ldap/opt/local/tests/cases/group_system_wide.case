@@ -1,0 +1,19 @@
+# A group under the system branch spans every domain, which is where access to
+# an application belongs: one instance of it serves all the domains.
+#
+# It gates access to the application rather than naming anything inside it,
+# so it is not published: no displayName, no marker class, and nothing for
+# the application to import.
+#
+# Compare with group_system_wide_published test cases.
+ldap_create_group --system --cn "my_application" \
+                  --member "uid=my_username,ou=users,ou=my_domain.tld,o=homelab"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: cn=my_application,ou=groups,ou=system,o=homelab
+objectClass: top
+objectClass: groupOfNames
+cn: my_application
+member: uid=my_username,ou=users,ou=my_domain.tld,o=homelab

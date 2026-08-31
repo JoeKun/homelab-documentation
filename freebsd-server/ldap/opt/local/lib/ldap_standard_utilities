@@ -1,0 +1,373 @@
+#! /usr/bin/env bash
+#
+# ldap_standard_utilities
+#
+# Created by Joel Lopes Da Silva on 1/1/18.
+# Copyright © 2018-2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+#-----------------------------------------------------------
+# Constants
+#-----------------------------------------------------------
+
+# The suffix of the directory. Override it in the environment if yours differs
+# from the one the guide describes.
+ldap_suffix="${LDAP_SUFFIX:-o=homelab}"
+
+# Where the non-tenant entries live.
+#
+# Capabilities are kept apart from system groups because they are fundamentally
+# different: a capability grants read access to certain entries and attributes
+# in the LDAP directory itself and is named by the access controls,
+# whereas a system group is used to list the users who may use an application.
+# Separating these into distinct organizational units guarantees that the
+# --system-group option cannot possibly affect a capability.
+ldap_system_base="ou=system,${ldap_suffix}"
+ldap_system_users_base="ou=users,${ldap_system_base}"
+ldap_system_groups_base="ou=groups,${ldap_system_base}"
+ldap_system_capabilities_base="ou=capabilities,${ldap_system_base}"
+
+
+#-----------------------------------------------------------
+# LDIF construction
+#-----------------------------------------------------------
+
+function ldap_combine_attributes() {
+    local attributes=""
+    local number_of_arguments=$#
+    local i
+    for ((i = 1; i <= ${number_of_arguments}; i++))
+    do
+        local current_argument="${!i}"
+        if [[ -n "${current_argument}" ]]
+        then
+            if [[ -n "${attributes}" ]]
+            then
+                attributes+=$'\n'
+            fi
+            attributes+="${current_argument}"
+        fi
+    done
+    echo "${attributes}"
+}
+
+# Escape a value so it can appear inside a distinguished name.
+#
+# Without this, a common name as ordinary as "Smith, John" produces a
+# distinguished name with an extra component, and the entry is created
+# somewhere nobody is looking for it rather than failing loudly.
+function ldap_escape_distinguished_name_value() {
+    local value="${1}"
+
+    # The backslash has to come first, or it escapes the escapes.
+    value="${value//\\/\\\\}"
+    value="${value//,/\\,}"
+    value="${value//+/\\+}"
+    value="${value//\"/\\\"}"
+    value="${value//</\\<}"
+    value="${value//>/\\>}"
+    value="${value//;/\\;}"
+    value="${value//=/\\=}"
+
+    # A leading number sign, or a space at either end, is only significant at
+    # the edges and is escaped there.
+    value="${value/#\#/\\#}"
+    value="${value/# /\\ }"
+    value="${value/% /\\ }"
+
+    echo "${value}"
+}
+
+# Emit one LDIF attribute line, encoding the value when it cannot be written
+# literally.
+#
+# LDIF can only carry a value as plain text when it is printable ASCII, does
+# not begin with a space, colon or less-than sign, and does not end with a
+# space. Anything else has to be base64, marked by a doubled colon. Writing
+# such a value literally does not fail: it is silently read back as something
+# else.
+function ldap_attribute() {
+    local attribute_name="${1}"
+    local attribute_value="${2}"
+
+    # Match against ASCII rather than the caller’s locale, so that an accented
+    # character is treated as needing encoding instead of as printable.
+    local LC_ALL=C
+
+    if [[ "${attribute_value}" =~ ^[^[:space:]:\<][[:print:]]*$ ]] && \
+       [[ "${attribute_value}" != *" " ]]
+    then
+        echo "${attribute_name}: ${attribute_value}"
+    else
+        echo "${attribute_name}:: $(printf '%s' "${attribute_value}" | openssl base64 -A)"
+    fi
+}
+
+# Turn a bare local part into a full email address.
+#
+# Addresses are stored fully qualified, because mailLocalAddress and
+# mailRoutingAddress are defined as RFC 822 addresses and because a bare local
+# part would have to be re-qualified at every lookup. Accepting the short form
+# here keeps that off the command line without imposing more complex query
+# logic for applications integrating with this LDAP directory.
+function ldap_qualified_mail_address() {
+    local address="${1}"
+    local domain_name="${2}"
+
+    if [[ "${address}" == *"@"* ]]
+    then
+        echo "${address}"
+    else
+        echo "${address}@${domain_name}"
+    fi
+}
+
+
+#-----------------------------------------------------------
+# Utility functions to talk to the LDAP server
+#-----------------------------------------------------------
+
+# Administration goes over the Unix socket, authenticated by the credentials of
+# the calling process. There is no password to pass around, and no root DN with
+# one to guess.
+function ldap_administrative_bind_options() {
+    echo "-H ldapi:/// -Y EXTERNAL -Q"
+}
+
+function ldap_entry_exists() {
+    local distinguished_name="${1}"
+
+    ldapsearch $(ldap_administrative_bind_options) -LLL \
+               -b "${distinguished_name}" -s base "(objectClass=*)" dn \
+               > /dev/null 2>&1
+}
+
+# Strip leading and trailing blank lines.
+#
+# Entries are written as multi-line strings that begin and end with a newline,
+# and a blank line in LDIF separates one entry from the next. Left in place, a
+# leading one makes the first entry look empty.
+function ldap_normalize_entries() {
+    local ldap_entries="${1}"
+
+    ldap_entries="${ldap_entries#"${ldap_entries%%[![:space:]]*}"}"
+    ldap_entries="${ldap_entries%"${ldap_entries##*[![:space:]]}"}"
+    printf '%s\n' "${ldap_entries}"
+}
+
+function ldap_perform_standard_add() {
+    local ldap_entries
+    ldap_entries=$(ldap_normalize_entries "${1}")
+
+    if [[ $(id -u) -ne 0 ]]
+    then
+        echo "This needs to run as root: the directory identifies you by the" >&2
+        echo "credentials of this process rather than by a password." >&2
+        return 1
+    fi
+
+    ldapadd $(ldap_administrative_bind_options) <<< "${ldap_entries}"
+}
+
+# Validate that a group display name only contains the allowed set of
+# characters commonly accepted by most applications.
+function ldap_validate_group_display_name() {
+    local group_display_name="${1}"
+
+    if [[ ! "${group_display_name}" =~ ^[A-Za-z0-9._@-]+$ ]]
+    then
+        echo "\"${group_display_name}\" cannot be a group display name:" >&2
+        echo "applications importing groups accept only letters, digits," >&2
+        echo "and the characters . - _ @" >&2
+        return 1
+    fi
+}
+
+# Add a member to a group that already exists.
+#
+# Kept separate from the function below because the groups corresponding to
+# the built-in access controls are created with the rest of the directory.
+function ldap_add_member_to_existing_group() {
+    local group_distinguished_name="${1}"
+    local member_distinguished_name="${2}"
+
+    ldapmodify $(ldap_administrative_bind_options) <<EOF
+dn: ${group_distinguished_name}
+changetype: modify
+add: member
+$(ldap_attribute "member" "${member_distinguished_name}")
+EOF
+}
+
+# Add a member to a group, creating the group when it does not exist yet.
+#
+# groupOfNames requires at least one member, so an empty group cannot be
+# created and then filled: the first member has to arrive with it.
+#
+# A display name is what publishes the group to the applications that import
+# groups, so a caller creating one they should not see passes none, and the
+# group is created without the marker class.
+#
+# Applications that import groups accept a limited character set for the name
+# they show, so a display name outside it is rejected or mangled by the very
+# consumer the attribute exists for. A common name that cannot be turned into
+# one is not an error in itself: pass --display-name and choose.
+function ldap_add_group_member() {
+    local group_common_name="${1}"
+    local group_base="${2}"
+    local member_distinguished_name="${3}"
+    local group_description="${4}"
+    local group_display_name="${5:-}"
+
+    if [[ -n "${group_display_name}" ]]
+    then
+        ldap_validate_group_display_name "${group_display_name}" || return 1
+    fi
+
+    local escaped_common_name
+    escaped_common_name=$(ldap_escape_distinguished_name_value "${group_common_name}")
+    local group_distinguished_name="cn=${escaped_common_name},${group_base}"
+
+    if ldap_entry_exists "${group_distinguished_name}"
+    then
+        ldap_add_member_to_existing_group "${group_distinguished_name}" \
+                                          "${member_distinguished_name}"
+        return $?
+    fi
+
+    # Attribute order matches ldap_create_group, so that a group created here
+    # and the same group created there are identical.
+    local group_attributes=()
+    group_attributes+=("objectClass: top")
+    group_attributes+=("objectClass: groupOfNames")
+    if [[ -n "${group_display_name}" ]]
+    then
+        group_attributes+=("objectClass: publishedGroup")
+    fi
+    group_attributes+=("$(ldap_attribute "cn" "${group_common_name}")")
+    if [[ -n "${group_display_name}" ]]
+    then
+        group_attributes+=("$(ldap_attribute "displayName" "${group_display_name}")")
+    fi
+    if [[ -n "${group_description}" ]]
+    then
+        group_attributes+=("$(ldap_attribute "description" "${group_description}")")
+    fi
+    group_attributes+=("$(ldap_attribute "member" "${member_distinguished_name}")")
+
+    ldap_perform_standard_add "
+dn: ${group_distinguished_name}
+$(ldap_combine_attributes "${group_attributes[@]}")
+"
+}
+
+
+#-----------------------------------------------------------
+# Socket based authentication
+#-----------------------------------------------------------
+
+# The pattern matching one Unix account as it arrives over the socket.
+#
+# A process connecting with SASL EXTERNAL over ldapi is identified by the
+# credentials of the process, which reach the server as a pair of numbers. The
+# group among them varies with how the service happens to be started, so only
+# the user is matched. Both ends are anchored, so that a longer identifier
+# containing this one cannot match it.
+function ldap_socket_identity_pattern() {
+    local unix_account_identifier="${1}"
+
+    echo "^gidNumber=[0-9]+\\+uidNumber=${unix_account_identifier},cn=peercred,cn=external,cn=auth\$"
+}
+
+# Whether the server already maps this identity onto this entry.
+#
+# The stored values carry an ordering prefix and are matched on the pair rather
+# than on the whole line, and wrapping is turned off because these values are
+# far longer than the width LDIF folds at.
+function ldap_socket_account_mapping_exists() {
+    local socket_identity_pattern="${1}"
+    local distinguished_name="${2}"
+
+    ldapsearch $(ldap_administrative_bind_options) -LLL -o ldif-wrap=no \
+               -b "cn=config" -s base "(objectClass=*)" olcAuthzRegexp \
+               2> /dev/null \
+        | grep -q -F -- "${socket_identity_pattern} ${distinguished_name}"
+}
+
+# Read the user identifier of the account a service will bind as, refusing the
+# ones that cannot be mapped.
+function ldap_resolve_socket_account_identifier() {
+    local unix_account="${1}"
+
+    local unix_account_identifier
+    unix_account_identifier=$(id -u "${unix_account}" 2> /dev/null)
+    if [[ -z "${unix_account_identifier}" ]]
+    then
+        echo "There is no \"${unix_account}\" account on this machine." >&2
+        echo "Install the service before creating the entry it binds as, so that its" >&2
+        echo "user identifier can be read rather than guessed." >&2
+        return 1
+    fi
+
+    # Root is refused deliberately. Its unmapped name is what the access
+    # control on cn=config grants to, so rewriting it would leave nobody able
+    # to change the server’s configuration, including to undo this.
+    if [[ ${unix_account_identifier} -eq 0 ]]
+    then
+        echo "Refusing to map the root account." >&2
+        echo "Root reaches cn=config under its own name, so mapping it onto an entry" >&2
+        echo "would leave nobody able to change the server’s configuration." >&2
+        return 1
+    fi
+
+    echo "${unix_account_identifier}"
+}
+
+# Let a Unix account bind as a directory entry over the socket.
+#
+# This is the one thing here that writes to the server’s configuration rather
+# than to the directory, because that is where a mapping between an operating
+# system account and a distinguished name has to live.
+#
+# It follows that the mapping is not carried by a dump of the directory,
+# and is recreated by running this again rather than by restoring one.
+#
+# If you want to dump all the important components used by your LDAP server,
+# you can dump both the configuration database as well as the data-related
+# database with two distinct invocations of `slapcat`:
+#
+#     slapcat -n0 -F /usr/local/etc/openldap/slapd.d -l /root/ldap-config.ldif
+#     slapcat -n1 -F /usr/local/etc/openldap/slapd.d -l /root/ldap-data.ldif
+function ldap_map_socket_account() {
+    local unix_account_identifier="${1}"
+    local distinguished_name="${2}"
+
+    local socket_identity_pattern
+    socket_identity_pattern=$(ldap_socket_identity_pattern "${unix_account_identifier}")
+
+    if ldap_socket_account_mapping_exists "${socket_identity_pattern}" \
+                                          "${distinguished_name}"
+    then
+        return 0
+    fi
+
+    ldapmodify $(ldap_administrative_bind_options) <<EOF
+dn: cn=config
+changetype: modify
+add: olcAuthzRegexp
+olcAuthzRegexp: ${socket_identity_pattern} ${distinguished_name}
+EOF
+}
+

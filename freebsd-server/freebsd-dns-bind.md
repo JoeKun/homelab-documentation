@@ -1,4 +1,4 @@
-# Authoritative DNS server on FreeBSD with BIND
+# Authoritative DNS server with BIND on FreeBSD
 
 If you have a domain name, you might choose to self-host your own DNS server.
 
@@ -6,7 +6,7 @@ A popular option for this is a suite of software components for interacting with
 
 Its most prominent component, `named` (short for *name daemon*), performs both of the main DNS server roles, acting as an authoritative name server for DNS zones and as a recursive resolver in the network.
 
-This guide will walk you through the process of setting up an authoritative DNS server on FreeBSD with BIND’s `named`, so you can declare your own DNS zones.
+This guide will walk you through the process of setting up an authoritative DNS server with BIND’s `named` on FreeBSD, so you can declare your own DNS zones.
 
 **Important note**: This guide does not cover how to configure BIND’s `named` to act as a DNS server for domain name resolution in your local network. The goal is not for the DNS server to resolve any DNS queries, except for the domains that it is authoritative for.
 
@@ -402,7 +402,7 @@ Starting named.
 
 In order for your new DNS server to be reachable from the internet, you’ll need to open the port for the `domain` service, which corresponds to port 53.
 
-If you configured `pf` as a firewall as shown in [Configuring firewall for FreeBSD with `pf`](freebsd-firewall.md), all you need to do is to ensure `domain` is included in the `tcp_services` and `udp_services` variables, and reload `pf` rules.
+If you configured `pf` as a firewall as shown in [Configuring firewall with `pf` on FreeBSD](freebsd-firewall.md), all you need to do is to ensure `domain` is included in the `tcp_services` and `udp_services` variables, and reload `pf` rules.
 
 ```console
 # service pf reload

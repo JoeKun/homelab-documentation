@@ -1,0 +1,15 @@
+# Binding as a Unix account of this machine is what a service does in place of
+# holding a password. A person has a password, and no Unix account here, so the
+# option means nothing for them and is refused rather than quietly ignored.
+ldap_create_user --domain "my_domain.tld" --uid "john"          \
+                 --surname "Smith" --user-password "secret"     \
+                 --socket-account "john"
+
+# Expected exit status: 1
+# Expected error output:
+
+--socket-account is only meaningful with --system.
+It lets a service on this machine bind as the Unix account it runs
+under, which is not how a person signs in.
+
+# Expected LDIF:

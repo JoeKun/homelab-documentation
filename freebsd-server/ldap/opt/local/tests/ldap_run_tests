@@ -1,0 +1,394 @@
+#! /usr/bin/env bash
+#
+# ldap_run_tests
+#
+# Created by Joel Lopes Da Silva on 8/22/26.
+# Copyright © 2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Each case is one file in the `cases` folder, holding an invocation
+# and exactly what it should send to the LDAP directory, separated
+# by two marker lines:
+#
+#     # A password and a routing address together describe something that
+#     # submits mail but receives none.
+#     ldap_create_user --domain "my_domain.tld" --uid "scanner" \
+#                      --mail-destination "admin" --authenticated-sender \
+#                      --user-password "secret"
+#
+#     # Expected exit status: 0
+#     # Expected LDIF:
+#
+#     dn: uid=scanner,ou=users,ou=my_domain.tld,o=homelab
+#     […]
+#
+# Both markers are comments in shell and in LDIF alike, so each half of the
+# file stays readable as what it is. The suite is therefore also the reference
+# for what each option produces, and a case that is hard to read is a sign the
+# options are wrong.
+#
+# Anything above the first marker is the invocation, so a case can open with a
+# comment saying why the outcome is what it is.
+#
+# A case that expects something on standard error carries a third marker,
+# between the other two:
+#
+#     # Expected exit status: 1
+#     # Expected error output:
+#
+#     Failed to create domain "my_domain.tld".
+#     A domain cannot be both an alias only domain and a mailbox domain.
+#     Please consider creating this domain with --mailbox-domain only.
+#
+#     # Expected LDIF:
+#
+# Without it the expectation is that nothing was written to `stderr`, so
+# a script that starts warning about something has to say so here to pass.
+#
+# Nothing here contacts an LDAP server. The functions that would talk to one
+# are replaced by stubs that print the LDIF instead, which is what makes the
+# expected output something you can read rather than something you must trust.
+#
+#     ./ldap_run_tests                 run every case
+#     ./ldap_run_tests user_           run the test cases whose name starts with
+#                                      `user_`
+#     ./ldap_run_tests --regenerate    rewrite the expected halves from what
+#                                      the scripts currently produce
+#
+# Regenerating preserves the invocation and its comments, and rewrites only
+# the two markers and what follows them.
+#
+
+# Capture script container directory
+pushd $(dirname "${0}") > /dev/null
+tests_directory=$(pwd)
+popd > /dev/null
+
+pushd "${tests_directory}/.." > /dev/null
+installation_directory=$(pwd)
+popd > /dev/null
+
+test_cases_directory="${tests_directory}/cases"
+
+#-----------------------------------------------------------
+# Constants
+#-----------------------------------------------------------
+
+# A hash that looks like the real thing but obviously is not. `slappasswd`
+# salts at random, so its real output differs on every run and no expected
+# half could ever match it.
+stubbed_password_hash='{CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas'
+
+# The user identifier the stubbed `id` reports for a socket account, so that a
+# case reads the same wherever it runs.
+stubbed_socket_account_identifier=125
+
+status_marker="# Expected exit status:"
+error_marker="# Expected error output:"
+ldif_marker="# Expected LDIF:"
+
+# The capability groups are always there on a real server, since the access
+# controls name them and the directory is created with them. Treating them as
+# present here is what lets a case be written the way it would really be typed.
+ldap_test_directory_skeleton="\
+cn=service-accounts,ou=capabilities,ou=system,o=homelab \
+cn=user-authenticators,ou=capabilities,ou=system,o=homelab \
+cn=mail-routing-readers,ou=capabilities,ou=system,o=homelab \
+cn=group-membership-readers,ou=capabilities,ou=system,o=homelab \
+cn=user-profile-readers,ou=capabilities,ou=system,o=homelab"
+
+
+#-----------------------------------------------------------
+# Parse arguments
+#-----------------------------------------------------------
+
+should_regenerate_test_cases=0
+test_case_name_prefix=""
+
+for current_argument in "$@"
+do
+    case "${current_argument}" in
+        "--regenerate")
+            should_regenerate_test_cases=1
+            ;;
+        *)
+            test_case_name_prefix="${current_argument}"
+            ;;
+    esac
+done
+
+
+#-----------------------------------------------------------
+# Test harness
+#-----------------------------------------------------------
+
+# The scripts locate their shared library relative to their own directory, and
+# for a script reached through a symbolic link that is where the link lives
+# rather than where the file does: bash does not resolve $0. So a directory of
+# links to them, beside a library that sources the real one and overrides the
+# few functions reaching the network, is enough to redirect them. Nothing is
+# copied, so the scripts under test are the real ones.
+
+test_harness_directory=$(mktemp -d)
+trap 'rm -rf "${test_harness_directory}"' EXIT
+
+mkdir -p "${test_harness_directory}/bin" "${test_harness_directory}/lib" "${test_harness_directory}/stub"
+
+for script_path in "${installation_directory}/bin/"ldap_*
+do
+    ln -s "${script_path}" "${test_harness_directory}/bin/"
+done
+
+cat > "${test_harness_directory}/lib/ldap_standard_utilities" << EOF
+. "${installation_directory}/lib/ldap_standard_utilities"
+EOF
+
+cat >> "${test_harness_directory}/lib/ldap_standard_utilities" << 'EOF'
+
+# Print the entries instead of adding them, and separate one call from the
+# next the way LDIF separates entries.
+function ldap_perform_standard_add() {
+    ldap_normalize_entries "${1}"
+    echo
+}
+
+# Nothing else exists unless a case says otherwise, so group creation takes the
+# branch that creates the group. A case that wants the other branch lists the
+# distinguished names it should consider present.
+function ldap_entry_exists() {
+    local distinguished_name="${1}"
+    case " ${ldap_test_directory_skeleton} ${LDAP_TEST_EXISTING_ENTRIES:-} " in
+        *" ${distinguished_name} "*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+function ldapmodify() {
+    cat
+    echo
+}
+
+# No mapping is in place unless a case says otherwise, so a socket account
+# takes the branch that writes one.
+function ldap_socket_account_mapping_exists() {
+    local socket_identity_pattern="${1}"
+    local distinguished_name="${2}"
+    case " ${LDAP_TEST_EXISTING_SOCKET_MAPPINGS:-} " in
+        *" ${distinguished_name} "*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+EOF
+
+cat > "${test_harness_directory}/stub/slappasswd" << EOF
+#! /bin/sh
+echo '${stubbed_password_hash}'
+EOF
+chmod +x "${test_harness_directory}/stub/slappasswd"
+
+# The accounts of whichever machine runs the tests are not the accounts of the
+# server, so `id` answers from a fixed list instead: every name exists but one,
+# and root keeps the identifier that has to be refused. Only `id -u` is used.
+cat > "${test_harness_directory}/stub/id" << EOF
+#! /bin/sh
+if [ -z "\${2}" ]
+then
+    echo 0
+    exit 0
+fi
+case "\${2}" in
+    "root")
+        echo 0
+        ;;
+    "no_such_account")
+        echo "id: \${2}: no such user" >&2
+        exit 1
+        ;;
+    *)
+        echo ${stubbed_socket_account_identifier}
+        ;;
+esac
+EOF
+chmod +x "${test_harness_directory}/stub/id"
+
+
+#-----------------------------------------------------------
+# Test case file parsing logic
+#-----------------------------------------------------------
+
+function command_of_test_case() {
+    awk -v marker="${status_marker}" \
+        'index($0, marker) == 1 { exit } { print }' "${1}"
+}
+
+function expected_status_of_test_case() {
+    awk -v marker="${status_marker}" \
+        'index($0, marker) == 1 { print substr($0, length(marker) + 2); exit }' "${1}"
+}
+
+# Absent from a case, this section is empty, so anything a script writes to
+# standard error without the case saying so is a failure.
+function expected_error_of_test_case() {
+    awk -v marker="${error_marker}" -v terminator="${ldif_marker}" '
+        index($0, terminator) == 1    { exit }
+        found && !started && $0 == "" { next }
+        found                         { started = 1; print }
+        index($0, marker) == 1        { found = 1 }
+    ' "${1}"
+}
+
+# The blank line separating a marker from what follows is there to be read, not
+# to be compared, so leading blank lines are skipped. The ones between entries
+# are content and are kept.
+function expected_output_of_test_case() {
+    awk -v marker="${ldif_marker}" '
+        found && !started && $0 == "" { next }
+        found                         { started = 1; print }
+        index($0, marker) == 1        { found = 1 }
+    ' "${1}"
+}
+
+
+#-----------------------------------------------------------
+# Logic for running one test case
+#-----------------------------------------------------------
+
+number_of_failures=0
+number_of_test_cases=0
+
+function run_test_case() {
+    local test_case_name="${1}"
+    local test_case_file="${test_cases_directory}/${test_case_name}.case"
+
+    number_of_test_cases=$((number_of_test_cases + 1))
+
+    local test_case_command
+    test_case_command=$(command_of_test_case "${test_case_file}")
+    printf '%s\n' "${test_case_command}" > "${test_harness_directory}/current_test_case"
+
+    local actual_output
+    # A case runs in a shell of its own, so anything the harness library reads
+    # has to be handed to it here rather than merely defined above.
+    actual_output=$(PATH="${test_harness_directory}/stub:${test_harness_directory}/bin:${PATH}" \
+                    ldap_test_directory_skeleton="${ldap_test_directory_skeleton}" \
+                    bash "${test_harness_directory}/current_test_case" \
+                    2> "${test_harness_directory}/current_error")
+    local actual_status=$?
+    local actual_error
+    actual_error=$(cat "${test_harness_directory}/current_error")
+
+    if [[ ${should_regenerate_test_cases} -ne 0 ]]
+    then
+        {
+            printf '%s\n' "${test_case_command}"
+            echo
+            printf '%s %s\n' "${status_marker}" "${actual_status}"
+            if [[ -n "${actual_error}" ]]
+            then
+                printf '%s\n' "${error_marker}"
+                echo
+                printf '%s\n' "${actual_error}"
+                echo
+            fi
+            printf '%s\n' "${ldif_marker}"
+            if [[ -n "${actual_output}" ]]
+            then
+                echo
+                printf '%s\n' "${actual_output}"
+            fi
+        } > "${test_case_file}.regenerated"
+        mv "${test_case_file}.regenerated" "${test_case_file}"
+        echo "regenerated ${test_case_name}"
+        return
+    fi
+
+    local expected_status
+    expected_status=$(expected_status_of_test_case "${test_case_file}")
+    local expected_error
+    expected_error=$(expected_error_of_test_case "${test_case_file}")
+    local expected_output
+    expected_output=$(expected_output_of_test_case "${test_case_file}")
+
+    if [[ "${actual_output}" == "${expected_output}" ]] && \
+       [[ "${actual_error}" == "${expected_error}" ]] && \
+       [[ "${actual_status}" == "${expected_status}" ]]
+    then
+        return
+    fi
+
+    number_of_failures=$((number_of_failures + 1))
+    echo "FAIL ${test_case_name}"
+    if [[ "${actual_status}" != "${expected_status}" ]]
+    then
+        echo "  exit status ${actual_status}, expected ${expected_status}"
+    fi
+    if [[ "${actual_error}" != "${expected_error}" ]]
+    then
+        echo "  error output:"
+        diff -u -L "Expected" -L "Actual" \
+                <(printf '%s\n' "${expected_error}") \
+                <(printf '%s\n' "${actual_error}") \
+            | sed -e "s/^/    /"
+    fi
+    if [[ "${actual_output}" != "${expected_output}" ]]
+    then
+        diff -u -L "Expected" -L "Actual" \
+                <(printf '%s\n' "${expected_output}") \
+                <(printf '%s\n' "${actual_output}") \
+            | sed -e "s/^/  /"
+    fi
+    echo
+}
+
+
+#-----------------------------------------------------------
+# Run every test case
+#-----------------------------------------------------------
+
+for test_case_file in "${test_cases_directory}/${test_case_name_prefix}"*.case
+do
+    if [[ ! -f "${test_case_file}" ]]
+    then
+        echo "No test cases matching \"${test_case_name_prefix}\"." >&2
+        exit 1
+    fi
+    test_case_name=$(basename "${test_case_file}" ".case")
+    run_test_case "${test_case_name}"
+done
+
+if [[ ${should_regenerate_test_cases} -ne 0 ]]
+then
+    echo
+    echo "Read every regenerated case before committing it: regenerating"
+    echo "blesses whatever the scripts currently do, including a mistake."
+    exit 0
+fi
+
+if [[ ${number_of_failures} -eq 0 ]]
+then
+    echo "${number_of_test_cases} case(s) passed."
+else
+    echo "${number_of_failures} of ${number_of_test_cases} case(s) failed."
+    exit 1
+fi
+

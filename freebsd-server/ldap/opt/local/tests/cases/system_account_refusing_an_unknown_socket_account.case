@@ -1,0 +1,16 @@
+# The Unix account has to exist before its identifier can be read, and the
+# whole point of reading it is that it is never written down. A name that is
+# not an account is therefore a mistake worth stopping for, and nothing is
+# created: the account is resolved before the entry is added, so this does not
+# leave behind an entry with neither a password nor a way to bind.
+ldap_create_user --system --cn "my_mail_service"            \
+                 --socket-account "no_such_account"
+
+# Expected exit status: 1
+# Expected error output:
+
+There is no "no_such_account" account on this machine.
+Install the service before creating the entry it binds as, so that its
+user identifier can be read rather than guessed.
+
+# Expected LDIF:

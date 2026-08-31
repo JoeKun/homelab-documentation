@@ -1,0 +1,292 @@
+# /usr/local/etc/openldap/slapd.ldif: bootstrap configuration for slapd
+#
+# See slapd-config(5) for details on configuration options.
+
+# This file is read exactly once, by slapadd, to populate slapd.d. It is not
+# live configuration: editing it afterwards changes nothing, and later changes
+# have to go through ldapmodify against cn=config.
+#
+# An empty line ends an entry, so the section breaks *within* one are lines
+# holding nothing but a number sign. Those are comments and are ignored, where
+# a truly empty line would leave every attribute after it belonging to no
+# entry at all, and slapadd would refuse the file.
+
+#-----------------------------------------------------------
+# Global configuration
+#-----------------------------------------------------------
+
+dn: cn=config
+objectClass: olcGlobal
+cn: config
+olcArgsFile: /var/run/openldap/slapd.args
+olcPidFile: /var/run/openldap/slapd.pid
+#
+#
+#-----------------------------------------------------------
+# TLS support
+#-----------------------------------------------------------
+#
+# slapd wants the leaf certificate and the issuing chain as two separate
+# files, which is why these point into letsencrypt/live rather than at the
+# convenience symbolic links in /usr/local/etc/ssl: those expose fullchain
+# and the key, and there is no link for the leaf on its own.
+#
+olcTLSCACertificateFile: /usr/local/etc/letsencrypt/live/my_domain.tld/fullchain.pem
+olcTLSCertificateFile: /usr/local/etc/letsencrypt/live/my_domain.tld/cert.pem
+olcTLSCertificateKeyFile: /usr/local/etc/letsencrypt/live/my_domain.tld/privkey.pem
+olcTLSProtocolMin: 3.3
+#
+#
+#-----------------------------------------------------------
+# Security policies
+#-----------------------------------------------------------
+#
+# Network clients must use encryption with a cipher whose key should be at
+# least 128 bits long. This is policy is established by setting the
+# Security Strength Factor (SSF) to 128.
+olcSecurity: ssf=128 simple_bind=64
+#
+# For local connections via a Unix socket, no encryption is used, and their
+# SSF would be set to 71. In order to meet the requirement of a minimum SSF
+# score of 128, we need to pin the SSF score for local connections via a
+# Unix socket to a number above that required floor. Note that this is what
+# makes ldapi usable at all (without it even root is refused).
+olcLocalSSF: 256
+#
+# There are intentionally no olcAuthzRegexp directives here. A process
+# connecting over ldapi with SASL EXTERNAL is identified by the credentials of
+# its own process, and a map declared with olcAuthzRegexp can turn those
+# numbers into the distinguished name of a service account, which can be a
+# member of relevant capability groups. However, it’s useful to be able to
+# support a dynamic approach to adding service accounts, since that could be
+# needed well after the initial setup of the LDAP directory. Consequently,
+# relevant olcAuthzRegexp directives are added by the ldap_create_user
+# helper script when invoked with --socket-account.
+#
+#
+#-----------------------------------------------------------
+# Dynamic backend and overlay modules
+#-----------------------------------------------------------
+
+dn: cn=module,cn=config
+objectClass: olcModuleList
+cn: module
+olcModulepath: /usr/local/libexec/openldap
+olcModuleload: back_mdb.la
+olcModuleload: memberof.la
+olcModuleload: refint.la
+olcModuleload: unique.la
+
+
+#-----------------------------------------------------------
+# Schema
+#-----------------------------------------------------------
+
+# Beyond the built-in schemas that come as part of OpenLDAP itself,
+# we also include two custom schemas located in /opt/local.
+
+dn: cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: schema
+
+include: file:///usr/local/etc/openldap/schema/core.ldif
+include: file:///usr/local/etc/openldap/schema/cosine.ldif
+include: file:///usr/local/etc/openldap/schema/inetorgperson.ldif
+include: file:///usr/local/etc/openldap/schema/misc.ldif
+include: file:///usr/local/etc/openldap/schema/nis.ldif
+include: file:///opt/local/etc/openldap/schema/virtual_mail.ldif
+include: file:///opt/local/etc/openldap/schema/published_group.ldif
+
+
+#-----------------------------------------------------------
+# Frontend settings
+#-----------------------------------------------------------
+
+# Access control for the data lives on the database below; the only thing
+# granted globally is the root DSE and the subschema, which carry no private
+# information and which clients probe before they can bind.
+
+dn: olcDatabase=frontend,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcFrontendConfig
+olcDatabase: frontend
+olcAccess: to dn.base="" by * read
+olcAccess: to dn.base="cn=Subschema" by * read
+
+
+#-----------------------------------------------------------
+# Configuration database
+#-----------------------------------------------------------
+
+# cn=config is a database like any other, and reaching it takes an access
+# control saying so. There is no built-in grant to inherit: the tools that
+# populate this configuration are offline ones, which bypass access controls
+# entirely, so without the rule below the configuration is readable by nobody
+# once slapd is running.
+#
+# Root over the Unix socket is the only thing granted, and deliberately so:
+# changing the server’s configuration stays a matter of having a shell on this
+# machine, rather than something the administrator’s password can do over the
+# network.
+
+dn: olcDatabase=config,cn=config
+objectClass: olcDatabaseConfig
+olcDatabase: config
+olcAccess: to *
+                by dn.exact="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" manage
+                by * break
+
+
+#-----------------------------------------------------------
+# LMDB database
+#-----------------------------------------------------------
+
+dn: olcDatabase=mdb,cn=config
+objectClass: olcDatabaseConfig
+objectClass: olcMdbConfig
+olcDatabase: mdb
+olcSuffix: o=homelab
+olcDbDirectory: /var/db/openldap-data
+#
+# Customize the maximum size of this LMDB database to 1 GB.
+#
+olcDbMaxSize: 1073741824
+#
+# The root DN has no password and so cannot bind at all. It exists because
+# internal operations need an identity, and administration goes through
+# cn=admin, whose powers come from the access controls below and are therefore
+# visible and revocable.
+#
+olcRootDN: cn=root,o=homelab
+#
+#
+#-----------------------------------------------------------
+# Indices
+#-----------------------------------------------------------
+#
+# Every attribute named in a filter used by any of the applications that use
+# this LDAP directory needs to have an index in this section of the
+# configuration file.
+#
+olcDbIndex: objectClass eq
+olcDbIndex: entryUUID eq
+olcDbIndex: default pres,eq
+olcDbIndex: uid
+olcDbIndex: cn,sn pres,eq,sub
+olcDbIndex: mail eq
+olcDbIndex: mailLocalAddress eq
+# mailRoutingAddress is tested for presence rather than equality,
+# which is a different index.
+olcDbIndex: mailRoutingAddress pres
+olcDbIndex: associatedDomain eq
+olcDbIndex: displayName eq
+olcDbIndex: member eq
+olcDbIndex: memberOf eq
+#
+#
+#-----------------------------------------------------------
+# Access control
+#-----------------------------------------------------------
+#
+# Ordinary users may read nothing and write nothing. Nothing in the stack
+# requires it: most applications read what they need through their own
+# service account, and can bind as the user of the service. All a user needs
+# is the right to authenticate.
+#
+# Service accounts are granted named sets of attributes, and the grant is by
+# group membership rather than by DN. That way the text below is written once
+# and adding a service is a write to the directory instead of a change to the
+# server’s configuration.
+#
+# The attribute sets are disjoint on purpose. Evaluation stops at the first
+# rule whose target matches, so an attribute appearing in two rules would be
+# governed only by the earlier one; where several capabilities need the same
+# attributes that is expressed as several `by group` lines within one rule.
+#
+# There are two ways of administering the LDAP directory. The first one is by
+# connecting as root over a Unix socket, which is how the scripts in
+# /opt/local/bin write without holding a password; the second is the
+# administrator system account which is usable in a graphical client.
+olcAccess: to *
+                by dn.exact="gidNumber=0+uidNumber=0,cn=peercred,cn=external,cn=auth" manage
+                by dn.exact="cn=admin,ou=users,ou=system,o=homelab" manage
+                by * break
+olcAccess: to attrs=userPassword
+                by anonymous auth
+                by * none
+#
+# "entry" below is the entry itself rather than one of its attributes, and it
+# is part of the structural minimum for a plain reason: a search returns
+# nothing at all without it, whatever the attribute rules that follow say.
+olcAccess: to attrs=objectClass,entryUUID,entry
+                by group="cn=service-accounts,ou=capabilities,ou=system,o=homelab" read
+                by * none
+olcAccess: to attrs=mail
+                by group="cn=user-authenticators,ou=capabilities,ou=system,o=homelab" read
+                by group="cn=mail-routing-readers,ou=capabilities,ou=system,o=homelab" read
+                by * none
+olcAccess: to attrs=uid,cn
+                by group="cn=user-authenticators,ou=capabilities,ou=system,o=homelab" read
+                by * none
+olcAccess: to attrs=mailLocalAddress,mailRoutingAddress,associatedDomain
+                by group="cn=mail-routing-readers,ou=capabilities,ou=system,o=homelab" read
+                by * none
+olcAccess: to attrs=member,memberOf,displayName
+                by group="cn=group-membership-readers,ou=capabilities,ou=system,o=homelab" read
+                by * none
+olcAccess: to attrs=givenName,sn,jpegPhoto
+                by group="cn=user-profile-readers,ou=capabilities,ou=system,o=homelab" read
+                by * none
+olcAccess: to *
+                by * none
+
+
+#-----------------------------------------------------------
+# memberOf support
+#-----------------------------------------------------------
+
+# This allows checking for "is this user in that group" as a single
+# indexed test rather than a join the client has to perform.
+#
+# This acts on writes only. It will not validate what is already in
+# the database, which is another reason to enable it before loading data.
+
+dn: olcOverlay=memberof,olcDatabase={1}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcMemberOf
+olcOverlay: memberof
+
+
+#-----------------------------------------------------------
+# Referential integrity
+#-----------------------------------------------------------
+
+# This ensures that deleting a user does not leave its distinguished name
+# behind in every group that referenced it.
+
+dn: olcOverlay=refint,olcDatabase={1}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcRefintConfig
+olcOverlay: refint
+olcRefintAttribute: member
+olcRefintAttribute: memberOf
+
+
+#-----------------------------------------------------------
+# Group display name uniqueness
+#-----------------------------------------------------------
+
+# Applications key on the displayName attribute for groups, and require them
+# to be unique, which the schema cannot express. This constraint is
+# intentionally scoped to groups carrying the marker class publishedGroup
+# to avoid being overly restrictive with the separate namespace for users.
+#
+# Like memberOf, this acts on writes only. It will not validate what is already
+# in the database, which is another reason to enable it before loading data.
+
+dn: olcOverlay=unique,olcDatabase={1}mdb,cn=config
+objectClass: olcOverlayConfig
+objectClass: olcUniqueConfig
+olcOverlay: unique
+olcUniqueURI: ldap:///o=homelab?displayName?sub?(objectClass=publishedGroup)
+

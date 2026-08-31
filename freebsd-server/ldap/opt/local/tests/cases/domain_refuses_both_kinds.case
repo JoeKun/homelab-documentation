@@ -1,0 +1,10 @@
+ldap_create_domain --domain "my_domain.tld" --mailbox-domain --alias-domain
+
+# Expected exit status: 1
+# Expected error output:
+
+Failed to create domain "my_domain.tld".
+A domain cannot be both an alias only domain and a mailbox domain.
+Please consider creating this domain with --mailbox-domain only.
+
+# Expected LDIF:

@@ -1,0 +1,48 @@
+# Neither group exists yet, so each is created holding this entry as its first
+# member: groupOfNames cannot be empty, so there is no making one and filling
+# it afterwards. Nothing names these two in advance so creating one on demand
+# is required here. Every member after the first produces the modify in
+# user_joining_existing_groups instead, which is also why the description and
+# display name are only ever written here.
+#
+# The two differ in one way that matters. The group scoped to the domain is
+# published, because a flat namespace of imported groups is exactly what its
+# display name exists to disambiguate; the system group is not, because it
+# gates access to an application that should never see it among its own
+# groups. Publishing one of these is a deliberate act that must be done
+# separately with ldap_create_group --system --published.
+ldap_create_user --domain "my_domain.tld" --uid "my_third_username"             \
+                 --given-name "Joan" --surname "Smith" --user-password "secret" \
+                 --member-of "staff" --system-group "my_application"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=my_third_username,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+uid: my_third_username
+cn: Joan Smith
+givenName: Joan
+sn: Smith
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: my_third_username@my_domain.tld
+mailLocalAddress: my_third_username@my_domain.tld
+
+dn: cn=staff,ou=groups,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: groupOfNames
+objectClass: publishedGroup
+cn: staff
+displayName: staff@my_domain.tld
+description: Members of staff in my_domain.tld
+member: uid=my_third_username,ou=users,ou=my_domain.tld,o=homelab
+
+dn: cn=my_application,ou=groups,ou=system,o=homelab
+objectClass: top
+objectClass: groupOfNames
+cn: my_application
+description: Members of my_application
+member: uid=my_third_username,ou=users,ou=my_domain.tld,o=homelab

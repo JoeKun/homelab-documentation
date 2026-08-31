@@ -1,0 +1,17 @@
+# Two domains can each have a group of the same common name, and an application
+# importing both sees one flat namespace, so the display name carries the
+# domain. Bare member names are taken to be users of the group’s own domain.
+ldap_create_group --domain "my_domain.tld" --cn "staff"                 \
+                  --member "my_username" --member "my_other_username"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: cn=staff,ou=groups,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: groupOfNames
+objectClass: publishedGroup
+cn: staff
+displayName: staff@my_domain.tld
+member: uid=my_username,ou=users,ou=my_domain.tld,o=homelab
+member: uid=my_other_username,ou=users,ou=my_domain.tld,o=homelab

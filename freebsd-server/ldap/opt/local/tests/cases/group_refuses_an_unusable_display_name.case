@@ -1,0 +1,14 @@
+# Without --display-name, the display name is derived from the common name and
+# the domain, which here would give "engineering, west@my_domain.tld".
+# Applications importing groups accept only letters, digits, and . - _ @
+ldap_create_group --domain "my_domain.tld" --cn "engineering, west" \
+                  --member "my_username"
+
+# Expected exit status: 1
+# Expected error output:
+
+"engineering, west@my_domain.tld" cannot be a group display name:
+applications importing groups accept only letters, digits,
+and the characters . - _ @
+
+# Expected LDIF:

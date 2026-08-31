@@ -1,0 +1,19 @@
+ldap_create_user --domain "my_domain.tld" --uid "my_username"   \
+                 --given-name "John" --surname "Smith"          \
+                 --user-password "secret"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=my_username,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+uid: my_username
+cn: John Smith
+givenName: John
+sn: Smith
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: my_username@my_domain.tld
+mailLocalAddress: my_username@my_domain.tld

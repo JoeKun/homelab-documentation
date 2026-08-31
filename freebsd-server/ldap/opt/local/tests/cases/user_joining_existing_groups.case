@@ -1,0 +1,39 @@
+# The same invocation as in user_creating_groups_by_joining_them.case, with
+# both groups created beforehand, which is what every member after the first
+# one produces. LDAP_TEST_EXISTING_ENTRIES tells the harness which entries to
+# consider already present.
+#
+# Joining a group touches nothing but member, so whether a group is published
+# is decided once at creation time, and a later member cannot change it either
+# way. That is what makes it safe to declare a published group first and let
+# --system-group add to it.
+LDAP_TEST_EXISTING_ENTRIES="cn=staff,ou=groups,ou=my_domain.tld,o=homelab cn=my_application,ou=groups,ou=system,o=homelab" \
+    ldap_create_user --domain "my_domain.tld" --uid "my_third_username"             \
+                     --given-name "Joan" --surname "Smith" --user-password "secret" \
+                     --member-of "staff" --system-group "my_application"
+
+# Expected exit status: 0
+# Expected LDIF:
+
+dn: uid=my_third_username,ou=users,ou=my_domain.tld,o=homelab
+objectClass: top
+objectClass: person
+objectClass: inetOrgPerson
+objectClass: inetLocalMailRecipient
+uid: my_third_username
+cn: Joan Smith
+givenName: Joan
+sn: Smith
+userPassword: {CRYPT}$2a$12$SaltSaltSaltSaltSaltSaHashHashHashHashHashHashHashHas
+mail: my_third_username@my_domain.tld
+mailLocalAddress: my_third_username@my_domain.tld
+
+dn: cn=staff,ou=groups,ou=my_domain.tld,o=homelab
+changetype: modify
+add: member
+member: uid=my_third_username,ou=users,ou=my_domain.tld,o=homelab
+
+dn: cn=my_application,ou=groups,ou=system,o=homelab
+changetype: modify
+add: member
+member: uid=my_third_username,ou=users,ou=my_domain.tld,o=homelab

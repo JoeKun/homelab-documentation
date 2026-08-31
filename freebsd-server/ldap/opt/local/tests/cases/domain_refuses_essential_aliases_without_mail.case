@@ -1,0 +1,12 @@
+# A domain with neither --mailbox-domain nor --alias-domain accepts no mail at
+# all, so addresses answering for it would never be reached.
+ldap_create_domain --domain "my_domain.tld" --essential-aliases-destination "admin"
+
+# Expected exit status: 1
+# Expected error output:
+
+Failed to create domain "my_domain.tld".
+Essential aliases are only supported for a domain that supports
+mail delivery. Please consider adding the option --alias-domain.
+
+# Expected LDIF:
