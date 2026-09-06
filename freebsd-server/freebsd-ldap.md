@@ -212,9 +212,11 @@ Since `slapadd` runs as `root`, you must now change the ownership of everything 
 
 ## Enable and start the OpenLDAP daemon
 
-At this point, you can enable the `slapd` service. [^2]
+At this point, you can enable the `slapd` service. [^2] [^3]
 
 [^2]: As shown in [Modular system configuration on FreeBSD](freebsd-modular-system-configuration.md).
+
+[^3]: The proposed system configuration for `slapd` explicitly disables automatic backups, because they only include the regular data in the LDAP directory, but not the configuration database, which holds the server’s own settings. A more thorough alternative for backing up your LDAP directory is covered below in the section [Set up periodic backups for the LDAP directory](#set-up-periodic-backups-for-the-ldap-directory).
 
 ```console
 # cat << EOF > /usr/local/etc/rc.conf.d/slapd
@@ -224,6 +226,7 @@ slapd_enable="YES"
 slapd_flags="-h \"ldapi://%2fvar%2frun%2fopenldap%2fldapi/ ldap:/// ldaps:///\""
 slapd_sockets="/var/run/openldap/ldapi"
 slapd_cn_config="YES"
+slapd_autobackup_enable="NO"
 EOF
 ```
 
@@ -325,9 +328,9 @@ You can find several examples of how to add various kinds of entries to your LDA
 
 ### Service accounts
 
-A service account is an identity a service binds as, and the capabilities it’s given determine what data it has access to. [^3]
+A service account is an identity a service binds as, and the capabilities it’s given determine what data it has access to. [^4]
 
-[^3]: You can refer to the [Access control](#access-control) section above for a more detailed overview of the available capabilities.
+[^4]: You can refer to the [Access control](#access-control) section above for a more detailed overview of the available capabilities.
 
 ```console
 # ldap_create_user --system --cn "my_mail_service"                  \
@@ -448,3 +451,23 @@ Assuming you already configured `pf` as a firewall with rules for services you w
 ```console
 # service pf reload
 ```
+
+
+## Set up periodic backups for the LDAP directory
+
+As part of the helper LDAP scripts in the `homelab-documentation` repository, you will find a script designed to help with creating backups of your LDAP directory: [`ldap_backup`](ldap/opt/local/bin/ldap_backup).
+
+It uses `slapcat` to dump both the regular data in the LDAP directory, which includes all of your entries, and the configuration database, which holds the server’s own settings, including the mapping between a Unix account and a system user created with `--socket-account`.
+
+Assuming you [configured your `/etc/periodic.conf` to enable a modular periodic scripts configuration](freebsd-modular-periodic-scripts-configuration.md#scaffolding-for-modular-periodic-scripts-configuration), you can set this up to run every night with the [`500.ldap-backup`](ldap/usr/local/etc/periodic/daily/500.ldap-backup) periodic script, and the [`ldap-backup.conf`](ldap/usr/local/etc/periodic.conf.d/ldap-backup.conf) file that enables it.
+
+```console
+# mkdir -p /usr/local/etc/periodic/daily
+# cd /usr/local/etc/periodic/daily
+# ln -s ../../../../../homelab-documentation/freebsd-server/ldap/usr/local/etc/periodic/daily/500.ldap-backup
+
+# cd /usr/local/etc/periodic.conf.d
+# ln -s ../../../../homelab-documentation/freebsd-server/ldap/usr/local/etc/periodic.conf.d/ldap-backup.conf
+```
+
+The script only keeps a new backup if its contents have changed relative to the previous backup; by default, it will keep up to 10 distinct backups, but you can customize this number by changing the `daily_ldap_backup_generations` option in the `ldap-backup.conf` periodic script configuration.

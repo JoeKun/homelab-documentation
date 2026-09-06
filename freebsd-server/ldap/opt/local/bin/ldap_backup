@@ -1,0 +1,314 @@
+#! /usr/bin/env bash
+#
+# ldap_backup
+#
+# Created by Joel Lopes Da Silva on 9/5/26.
+# Copyright © 2026 Joel Lopes Da Silva. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Unlike the rest of the ldap_ scripts, this one never talks to the server:
+# slapcat reads the database files directly.
+
+#-----------------------------------------------------------
+# Usage
+#-----------------------------------------------------------
+
+function print_usage() {
+    cat << 'EOF'
+Usage: ldap_backup [options]
+
+Dump both halves of the LDAP directory into a dated backup, and keep
+the backup if it includes any changes since the previous backup.
+
+The configuration database is dumped alongside the data because it includes
+critical information that relates to the access lists, such as the mapping
+between a Unix account and an entry in cn=config.
+
+A run that finds both dumps identical to the previous backup keeps that one
+and discards the new identical backup.
+
+Options:
+  --output-directory <path>
+        Where the backups are kept. Defaults to /var/backups/openldap.
+
+  --generations <count>
+        How many backups to keep. Defaults to 10.
+        This number corresponds to the number of non-identical backups to
+        keep, because it is common to make infrequent edits to the LDAP
+        directory, but we still want to keep several different states it
+        was in.
+
+  -h, --help
+        Print this message and exit.
+EOF
+}
+
+
+#-----------------------------------------------------------
+# Constants
+#-----------------------------------------------------------
+
+# Where slapd keeps its configuration database.
+ldap_configuration_directory="${LDAP_CONFIGURATION_DIRECTORY:-/usr/local/etc/openldap/slapd.d}"
+
+# The directory where LDAP backups are stored.
+default_output_directory="/var/backups/openldap"
+
+# The default number of non-identical backups to keep.
+default_number_of_generations=10
+
+# The two dump files are named the same inside every backup directory,
+# given that the directory itself includes the timestamp of when the backup
+# was taken.
+configuration_dump_file_name="config.ldif"
+data_dump_file_name="data.ldif"
+
+# A backup is named for the day and time when it was taken, in UTC.
+backup_name_format="+%Y%m%d-%H%M%S"
+backup_name=$(date -u "${backup_name_format}")
+backup_name_pattern="^[0-9]{8}-[0-9]{6}$"
+
+# The data dump carries every password hash in the directory and the
+# configuration dump carries the one belonging to the administrator, so
+# nothing written here is readable by anyone but root.
+umask 077
+
+
+#-----------------------------------------------------------
+# Parse arguments
+#-----------------------------------------------------------
+
+output_directory="${default_output_directory}"
+number_of_generations="${default_number_of_generations}"
+
+number_of_arguments=$#
+for ((i = 1; i <= ${number_of_arguments}; i++))
+do
+    current_argument="${!i}"
+    case "${current_argument}" in
+        "-h"|"--help")
+            print_usage
+            exit 0
+            ;;
+        "--output-directory")
+            i=$((i + 1))
+            output_directory="${!i}"
+            ;;
+        "--generations")
+            i=$((i + 1))
+            number_of_generations="${!i}"
+            ;;
+        *)
+            echo "Unrecognized option \"${current_argument}\"." >&2
+            echo "Run ldap_backup --help for the options it accepts." >&2
+            exit 1
+            ;;
+    esac
+done
+
+
+#-----------------------------------------------------------
+# Validate arguments
+#-----------------------------------------------------------
+
+if [[ $(id -u) -ne 0 ]]
+then
+    echo "This needs to run as root: it reads the database files directly, and" >&2
+    echo "what it writes holds every password hash in the directory." >&2
+    exit 1
+fi
+
+# The count is checked here, before anything has been written, because it is
+# what decides which backups are removed further down. An empty or malformed
+# value would otherwise be read as zero and take every last one of them.
+if [[ ! "${number_of_generations}" =~ ^[1-9][0-9]*$ ]]
+then
+    echo "\"${number_of_generations}\" is not a valid number of backups to keep." >&2
+    echo "Pass a positive number to --generations." >&2
+    exit 1
+fi
+
+if [[ -z "${output_directory}" ]]
+then
+    echo "Pass a path to --output-directory." >&2
+    exit 1
+fi
+
+if [[ ! -d "${ldap_configuration_directory}" ]]
+then
+    echo "There is no configuration database in \"${ldap_configuration_directory}\"." >&2
+    echo "You may set LDAP_CONFIGURATION_DIRECTORY to a different directory if slapd" >&2
+    echo "keeps its configuration elsewhere." >&2
+    exit 1
+fi
+
+# The mode is set explicitly rather than left to the umask above, so that a
+# backup directory somebody created by hand ends up as private as one this
+# script created.
+mkdir -p "${output_directory}" || exit 1
+chmod 700 "${output_directory}" || exit 1
+
+
+#-----------------------------------------------------------
+# Set up temporary directory
+#-----------------------------------------------------------
+
+# A backup is assembled elsewhere and moved into place in one step, so that a
+# run interrupted halfway through cannot leave behind something incomplete.
+# The temporary directory is created inside the destination so that the move
+# is a rename within one file system rather than a copy.
+temporary_directory=""
+
+function remove_temporary_directory() {
+    if [[ -n "${temporary_directory}" ]] && [[ -d "${temporary_directory}" ]]
+    then
+        rm -R -f "${temporary_directory}"
+    fi
+}
+
+# Make sure to remove the temporary directory when this script exits.
+trap remove_temporary_directory EXIT
+
+# Catch relevant signals and turn them into an ordinary exit so
+# this automatic cleanup on exit will also work in those scenarios.
+trap 'exit 1' HUP INT TERM
+
+temporary_directory=$(mktemp -d "${output_directory}/.incomplete-XXXXXXXX") || exit 1
+
+
+#-----------------------------------------------------------
+# Dump both databases
+#-----------------------------------------------------------
+
+# Reading the database files rather than the server means this is safe
+# to run while slapd is serving: the mdb backend takes the dump inside
+# a read transaction, which sees one consistent snapshot of the database.
+function dump_database() {
+    local database_number="${1}"
+    local dump_path="${2}"
+
+    if ! slapcat -n"${database_number}"                 \
+                 -F "${ldap_configuration_directory}"   \
+                 -l "${dump_path}"
+    then
+        echo "Dumping database ${database_number} failed." >&2
+        return 1
+    fi
+
+    # Neither database can legitimately come out empty, since each holds
+    # at least the entry naming its own suffix.
+    if [[ ! -s "${dump_path}" ]]
+    then
+        echo "Dumping database ${database_number} produced an empty file." >&2
+        return 1
+    fi
+}
+
+dump_database 0 "${temporary_directory}/${configuration_dump_file_name}" || exit 1
+dump_database 1 "${temporary_directory}/${data_dump_file_name}" || exit 1
+
+
+#-----------------------------------------------------------
+# Keep the backup if it differs from the previous one
+#-----------------------------------------------------------
+
+latest_link="${output_directory}/latest"
+
+# Both halves are compared and both are kept whenever either one differs.
+# Rotating them apart would leave a backup directory whose newest
+# configuration and newest data came from different days, and every restore
+# would begin by working out which two files belong together.
+#
+# The test on the link is also what heals a dangling one: a backup is written
+# below, and the link is pointed at it.
+is_unchanged=0
+if [[ -d "${latest_link}" ]] &&                                     \
+   cmp -s "${temporary_directory}/${configuration_dump_file_name}"  \
+          "${latest_link}/${configuration_dump_file_name}" &&       \
+   cmp -s "${temporary_directory}/${data_dump_file_name}"           \
+          "${latest_link}/${data_dump_file_name}"
+then
+    is_unchanged=1
+fi
+
+if [[ ${is_unchanged} -ne 0 ]]
+then
+    echo "The LDAP directory has not changed since $(readlink "${latest_link}")."
+    echo "Keeping that latest backup, and discarding temporary files for this"
+    echo "identical and thus unnecessary backup."
+else
+    backup_directory="${output_directory}/${backup_name}"
+
+    # Two runs landing in the same second would otherwise move the second
+    # backup inside the first, which is what mv does when its destination is a
+    # directory that already exists.
+    if [[ -e "${backup_directory}" ]]
+    then
+        echo "\"${backup_directory}\" already exists, and is left alone." >&2
+        exit 1
+    fi
+
+    mv "${temporary_directory}" "${backup_directory}" || exit 1
+
+    # The temporary directory is now gone.
+    temporary_directory=""
+
+    # Replace the previous latest link with a new one for our new backup.
+    rm -f "${latest_link}"
+    ln -s "${backup_name}" "${latest_link}" || exit 1
+
+    echo "Backed up the LDAP directory to ${backup_directory}."
+fi
+
+
+#-----------------------------------------------------------
+# Remove older backups as needed
+#-----------------------------------------------------------
+
+# Only names matching the pattern are candidates, so that anything else
+# living here (the link, or a temporary directory left behind by a run
+# that was killed outright) is never removed.
+existing_backups=()
+for candidate_path in "${output_directory}"/*
+do
+    candidate_name=$(basename "${candidate_path}")
+    if [[ -d "${candidate_path}" ]] && [[ "${candidate_name}" =~ ${backup_name_pattern} ]]
+    then
+        existing_backups+=("${candidate_name}")
+    fi
+done
+
+latest_backup_name=$(readlink "${latest_link}" 2> /dev/null)
+number_of_backups_to_remove=$(( ${#existing_backups[@]} - number_of_generations ))
+number_of_backups_removed=0
+
+for ((i = 0; i < ${number_of_backups_to_remove}; i++))
+do
+    backup_to_remove="${existing_backups[i]}"
+
+    # Whatever the latest link points to is never removed.
+    if [[ "${backup_to_remove}" == "${latest_backup_name}" ]]
+    then
+        continue
+    fi
+
+    rm -R -f "${output_directory}/${backup_to_remove}" || exit 1
+    number_of_backups_removed=$((number_of_backups_removed + 1))
+done
+
+if [[ ${number_of_backups_removed} -gt 0 ]]
+then
+    echo "Kept the newest ${number_of_generations} backups, and removed ${number_of_backups_removed}."
+fi
