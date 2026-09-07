@@ -31,33 +31,6 @@ then
     alias updatedb="/etc/periodic/weekly/310.locate"
 fi
 
-# Favor some GNU variants of common developer tools.
-if [[ ${+commands[gpatch]} -ne 0 ]]
-then
-    alias patch="gpatch"
-else
-    alias patch="patch --posix"
-fi
-if [[ ${+commands[gmake]} -ne 0 ]]
-then
-    function make() {
-        if [[ $(pwd) == "/usr/ports"* ]] || [[ $(pwd) == "/usr/local/poudriere/ports"* ]]
-        then
-            command make "$@"
-        else
-            gmake "$@"
-        fi
-    }
-fi
-
-# Combine markdown viewer mdv with pager (if present).
-if [[ ${+commands[mdv]} -ne 0 ]]
-then
-    function mdv() {
-        command mdv "$@" 2> /dev/null | less -R
-    }
-fi
-
 # Some handy aliases
 alias c="clear"
 alias less="less --quiet -M"
@@ -305,6 +278,23 @@ fi
 
 autoload -Uz compinit
 compinit
+
+
+#-----------------------------------------------------------
+# Modular configuration
+#-----------------------------------------------------------
+
+# Additional application-specific tweaks can be added
+# to `/usr/local/etc/zshrc.d` as a dedicated file with
+# the extension `.zsh`.
+if [[ -d /usr/local/etc/zshrc.d ]]
+then
+    for __zsh_configuration_file in /usr/local/etc/zshrc.d/*.zsh(N)
+    do
+        . "${__zsh_configuration_file}"
+    done
+    unset __zsh_configuration_file
+fi
 
 
 #-----------------------------------------------------------

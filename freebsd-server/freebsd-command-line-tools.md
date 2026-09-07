@@ -124,6 +124,17 @@ Link to global `zsh` configuration files.
   done
 ```
 
+Link to the discrete `zsh` configuration files loaded from `/usr/local/etc/zshrc.d`.
+
+```console
+# mkdir -p /usr/local/etc/zshrc.d
+# cd /usr/local/etc/zshrc.d
+# for file_name in ../../../../homelab-documentation/freebsd-server/zsh/usr/local/etc/zshrc.d/*.zsh; \
+  do \
+      ln -s ${file_name}; \
+  done
+```
+
 Link to user `zsh` configuration files for the `root` user.
 
 ```console
