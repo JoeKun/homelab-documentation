@@ -1,7 +1,7 @@
 #! /bin/sh
 
 # OpenLDAP
-#service slapd restart
+service slapd restart
 
 # Dovecot
 #service dovecot restart
@@ -12,5 +12,5 @@
 #service postfix status
 
 # nginx
-#service nginx restart
+service nginx restart
 

@@ -1,0 +1,17 @@
+# /usr/local/etc/nginx/ssl_parameters: SSL parameters for nginx
+
+# Only offer protocol versions that are still considered safe.
+# TLS 1.0 and TLS 1.1 are deprecated.
+ssl_protocols TLSv1.2 TLSv1.3;
+
+# Let the client choose among the cipher suites it prefers, which is the better
+# default with TLS 1.3, where every remaining cipher suite is strong.
+ssl_prefer_server_ciphers off;
+
+# Share resumed session parameters across all worker processes.
+ssl_session_cache shared:SSL:10m;
+ssl_session_timeout 1d;
+
+# Session tickets would need a rotating key to preserve forward secrecy,
+# which the session cache above already achieves without one.
+ssl_session_tickets off;

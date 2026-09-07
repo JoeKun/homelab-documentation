@@ -1,0 +1,16 @@
+# /usr/local/etc/nginx/php
+
+# Redefine index directive.
+index index.php index.html index.htm;
+
+# Pass the PHP scripts to the FastCGI server listening on php-handler.
+# There is no need to set HTTPS here: the stock fastcgi_params passes it
+# as `$https if_not_empty`, so it reaches PHP over TLS and stays unset
+# otherwise.
+location ~ \.php$ {
+    include fastcgi_params;
+    fastcgi_split_path_info ^(.+\.php)(/.+)$;
+    fastcgi_pass php-handler;
+    fastcgi_index index.php;
+    fastcgi_param SCRIPT_FILENAME $request_filename;
+}

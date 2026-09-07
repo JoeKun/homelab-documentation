@@ -1,0 +1,19 @@
+#! /bin/sh
+
+cd /usr/local/etc
+
+# Refuse to clobber a php.ini that was already customized.
+if [ -f php.ini ]
+then
+    echo "A php.ini file already exists in /usr/local/etc; not overwriting it." >&2
+    exit 1
+fi
+
+# Start from PHP’s own production defaults rather than the development ones.
+cp php.ini-production php.ini
+
+# Stop PHP from guessing a script name out of a path it was never given.
+patch --posix -p1 -i /homelab-documentation/freebsd-server/php/patches/php.ini-disable-cgi-fix-pathinfo.diff
+
+# Have php-fpm listen on a Unix socket owned by www rather than on a TCP port.
+patch --posix -p1 -i /homelab-documentation/freebsd-server/php/patches/php-fpm.d-www.conf-listen-on-a-socket.diff

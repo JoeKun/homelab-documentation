@@ -1,0 +1,11 @@
+# /usr/local/etc/nginx/error_pages
+
+# Serve the requested file, then the directory index, and answer 404
+# rather than falling through to whichever location happens to match next.
+try_files $uri $uri/ =404;
+
+# Redirect server error pages to the static page /50x.html.
+error_page  500 502 503 504     /50x.html;
+location = /50x.html {
+    root   /usr/local/www/nginx-dist;
+}

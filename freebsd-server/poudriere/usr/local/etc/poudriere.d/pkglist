@@ -46,3 +46,7 @@ security/py-certbot-dns-rfc2136
 
 # LDAP directory services
 net/openldap26-server
+
+# Web server and PHP
+www/nginx
+lang/php84

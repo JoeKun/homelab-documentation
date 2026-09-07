@@ -1,0 +1,3 @@
+# /usr/local/etc/rc.conf.d/php_fpm: system configuration for php-fpm
+
+php_fpm_enable="YES"

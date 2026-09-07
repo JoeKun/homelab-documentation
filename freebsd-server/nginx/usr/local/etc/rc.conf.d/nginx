@@ -1,0 +1,4 @@
+# /usr/local/etc/rc.conf.d/nginx: system configuration for nginx
+
+nginx_enable="YES"
+nginx_reload_quiet="YES"

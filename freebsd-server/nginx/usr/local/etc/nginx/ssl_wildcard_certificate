@@ -1,0 +1,4 @@
+# /usr/local/etc/nginx/ssl_wildcard_certificate
+
+ssl_certificate      /usr/local/etc/ssl/certs/my_domain.tld_wildcard.pem;
+ssl_certificate_key  /usr/local/etc/ssl/private/my_domain.tld_wildcard.key;

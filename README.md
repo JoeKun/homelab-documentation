@@ -115,4 +115,5 @@ If you suspect there may be an unspecified pre-requisite in any of these documen
  16. [Authoritative DNS server with BIND on FreeBSD](freebsd-server/freebsd-dns-bind.md)
  17. [Faster DNS zone replication with `nsnotifyd` on FreeBSD](freebsd-server/freebsd-faster-dns-replication-nsnotifyd.md)
  18. [SSL/TLS certificates with Let’s Encrypt on FreeBSD](freebsd-server/freebsd-ssl-tls-lets-encrypt.md)
- 19. [LDAP directory services with OpenLDAP on FreeBSD](freebsd-server/freebsd-ldap.md)
+ 19. [Web server with `nginx` and PHP on FreeBSD](freebsd-server/freebsd-web-server-nginx-php.md)
+ 20. [LDAP directory services with OpenLDAP on FreeBSD](freebsd-server/freebsd-ldap.md)
