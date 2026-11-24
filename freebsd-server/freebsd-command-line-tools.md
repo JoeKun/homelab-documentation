@@ -18,6 +18,7 @@ ftp/wget
 misc/figlet
 misc/fortune-mod-freebsd-classic
 misc/mmv
+security/sudo
 shells/bash
 shells/zsh
 sysutils/fastfetch
@@ -30,6 +31,7 @@ sysutils/vimpager
 textproc/colordiff
 textproc/diff-so-fancy
 textproc/par
+textproc/ripgrep
 EOF
 ```
 
@@ -55,6 +57,7 @@ And build your packages again.
 # pkg install colordiff
 # pkg install diff-so-fancy
 # pkg install mmv
+# pkg install sudo
 # pkg install htop
 # pkg install screen
 # pkg install curl
@@ -62,6 +65,7 @@ And build your packages again.
 # pkg install bash
 # pkg install most
 # pkg install par_format
+# pkg install ripgrep
 # pkg install gmake
 # pkg install pwgen
 # pkg install pstree
@@ -170,7 +174,7 @@ Create symbolic links to relevant configuration files for `vim`.
 
 ## Configure `vimpager`
 
-Replace default configuration file for `vimpager` with a symbolic links to relevant the one found in the repository.
+Replace default configuration file for `vimpager` with a symbolic link to the one found in the repository.
 
 ```console
 # cd /usr/local/etc

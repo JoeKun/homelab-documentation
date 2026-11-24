@@ -17,6 +17,7 @@ mail/mutt
 misc/figlet
 misc/fortune-mod-freebsd-classic
 misc/mmv
+security/sudo
 shells/bash
 shells/zsh
 sysutils/fastfetch
@@ -29,6 +30,7 @@ sysutils/vimpager
 textproc/colordiff
 textproc/diff-so-fancy
 textproc/par
+textproc/ripgrep
 
 # System administration utilities
 sysutils/smartmontools
