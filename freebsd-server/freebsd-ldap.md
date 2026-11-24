@@ -112,8 +112,8 @@ If you’re using `poudriere` following [this guide](freebsd-poudriere.md), then
 ```console
 # cat << EOF >> /usr/local/etc/poudriere.d/pkglist
 
-# LDAP directory services
-net/openldap26-server
+# Databases
+databases/openldap26-server
 EOF
 ```
 
