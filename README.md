@@ -117,3 +117,4 @@ If you suspect there may be an unspecified pre-requisite in any of these documen
  18. [SSL/TLS certificates with Let’s Encrypt on FreeBSD](freebsd-server/freebsd-ssl-tls-lets-encrypt.md)
  19. [Web server with `nginx` and PHP on FreeBSD](freebsd-server/freebsd-web-server-nginx-php.md)
  20. [LDAP directory services with OpenLDAP on FreeBSD](freebsd-server/freebsd-ldap.md)
+ 21. [In-memory data store with Redis on FreeBSD](freebsd-server/freebsd-redis.md)

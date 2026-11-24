@@ -1,0 +1,4 @@
+# /usr/local/etc/rc.conf.d/redis/my_service: system configuration for the redis instance dedicated to my_service
+
+redis_enable="YES"
+redis_profiles="${redis_profiles} my_service"

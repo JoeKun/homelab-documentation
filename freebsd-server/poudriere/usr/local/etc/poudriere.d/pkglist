@@ -50,3 +50,4 @@ lang/php84
 
 # Databases
 databases/openldap26-server
+databases/redis
