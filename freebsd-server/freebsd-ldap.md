@@ -17,7 +17,7 @@ For this setup, here are the main requirements.
  2. **Support for multiple email aliases per user**
 	 - `user@my_domain.tld` may want to be reachable via `support@my_domain.tld` and `feedback@my_domain.tld`.
  3. **Support for redirecting email externally**
-	 - `user@my_domain.tld` might choose to redirect email to `john.smith@external-email-provider.com`.
+	 - `user@my_domain.tld` might choose to redirect email to `john@external-domain.tld`.
  4. **Support for mail delivery to a local mailbox**
 	 - `user@my_domain.tld` might prefer instead to deliver email locally on the server.
  5. **Support for sending mail for alias accounts with a password**
