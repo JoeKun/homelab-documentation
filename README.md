@@ -97,24 +97,11 @@ If you suspect there may be an unspecified prerequisite in any of these document
 
 ### FreeBSD Server
 
- 1. [FreeBSD on Ampere Altra Server](freebsd-server/freebsd-ampere-altra.md)
- 2. [Remote access with SSH on FreeBSD](freebsd-server/freebsd-remote-access-ssh.md)
- 3. [Synchronizing time with NTP on FreeBSD](freebsd-server/freebsd-network-time-synchronization-ntp.md)
- 4. [Network file sharing with NFS on FreeBSD](freebsd-server/freebsd-network-file-sharing-nfs.md)
- 5. [FreeBSD guest virtual machine on Debian KVM hypervisor host](freebsd-server/freebsd-guest-on-debian-kvm-hypervisor.md)
- 6. [Custom package management for FreeBSD with `poudriere`](freebsd-server/freebsd-poudriere.md)
- 7. [Useful command-line tools for FreeBSD](freebsd-server/freebsd-command-line-tools.md)
- 8. [Private configuration tweaks on a dedicated branch](freebsd-server/freebsd-private-configuration-tweaks.md)
- 9. [Using a Unicode locale on FreeBSD](freebsd-server/freebsd-unicode-locale.md)
- 10. [Creating an unprivileged user on FreeBSD](freebsd-server/freebsd-unprivileged-user.md)
- 11. [Mount special file systems on FreeBSD](freebsd-server/freebsd-special-file-systems.md)
- 12. [Modular system configuration on FreeBSD](freebsd-server/freebsd-modular-system-configuration.md)
- 13. [Modular periodic scripts configuration on FreeBSD](freebsd-server/freebsd-modular-periodic-scripts-configuration.md)
- 14. [Storage health monitoring with `smartd` on FreeBSD](freebsd-server/freebsd-storage-health-monitoring-smart.md)
- 15. [Configuring firewall with `pf` on FreeBSD](freebsd-server/freebsd-firewall.md)
- 16. [Authoritative DNS server with BIND on FreeBSD](freebsd-server/freebsd-dns-bind.md)
- 17. [Faster DNS zone replication with `nsnotifyd` on FreeBSD](freebsd-server/freebsd-faster-dns-replication-nsnotifyd.md)
- 18. [SSL/TLS certificates with Let’s Encrypt on FreeBSD](freebsd-server/freebsd-ssl-tls-lets-encrypt.md)
- 19. [Web server with `nginx` and PHP on FreeBSD](freebsd-server/freebsd-web-server-nginx-php.md)
- 20. [LDAP directory services with OpenLDAP on FreeBSD](freebsd-server/freebsd-ldap.md)
- 21. [In-memory data store with Redis on FreeBSD](freebsd-server/freebsd-redis.md)
+The FreeBSD guides have their own index, grouped by topic in the [`freebsd-server` directory](freebsd-server/).
+
+ - [General setup](freebsd-server/README.md#general-setup)
+ - [Domain name service](freebsd-server/README.md#domain-name-service)
+ - [SSL/TLS certificates](freebsd-server/README.md#ssltls-certificates)
+ - [Web server](freebsd-server/README.md#web-server)
+ - [Directory services](freebsd-server/README.md#directory-services)
+ - [Databases](freebsd-server/README.md#databases)
