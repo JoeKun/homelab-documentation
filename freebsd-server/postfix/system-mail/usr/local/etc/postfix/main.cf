@@ -1,0 +1,92 @@
+# /usr/local/etc/postfix/main.cf: Postfix configuration for system mail only
+
+# This stage of the configuration accepts mail from this machine only,
+# and delivers it either into a local mailbox, for this machine’s own names,
+# or directly to the recipient’s mail server, for everything else.
+# Later stages of the setup replace this file with a copy of their own.
+
+#-----------------------------------------------------------
+# General options
+#-----------------------------------------------------------
+
+# Use the safer defaults introduced up to this version of Postfix.
+compatibility_level = 3.11
+
+
+#-----------------------------------------------------------
+# Installation paths and ownership
+#-----------------------------------------------------------
+
+# These settings correspond to the default values set by the FreeBSD package.
+
+mail_owner = postfix
+setgid_group = maildrop
+
+queue_directory = /var/spool/postfix
+command_directory = /usr/local/sbin
+daemon_directory = /usr/local/libexec/postfix
+data_directory = /var/db/postfix
+meta_directory = /usr/local/libexec/postfix
+shlib_directory = /usr/local/lib/postfix
+
+sendmail_path = /usr/local/sbin/sendmail
+newaliases_path = /usr/local/bin/newaliases
+mailq_path = /usr/local/bin/mailq
+
+html_directory = /usr/local/share/doc/postfix
+manpage_directory = /usr/local/share/man
+sample_directory = /usr/local/etc/postfix
+readme_directory = /usr/local/share/doc/postfix
+
+
+#-----------------------------------------------------------
+# Identity
+#-----------------------------------------------------------
+
+# myhostname, myorigin and mydestination are deliberately left to their
+# defaults. myhostname is the machine’s own fully qualified host name, and
+# myorigin follows it, so system mail leaves as root@my_server.my_domain.tld.
+# mydestination covers that same name and localhost, and nothing else: mail
+# for any other domain, including the parent domain, leaves this machine.
+
+
+#-----------------------------------------------------------
+# Network
+#-----------------------------------------------------------
+
+# Accept mail from processes on this machine only.
+mynetworks_style = host
+
+# Nothing listens on a public address, so there is no port to open
+# in the firewall.
+inet_interfaces = loopback-only
+
+
+#-----------------------------------------------------------
+# Local delivery
+#-----------------------------------------------------------
+
+# FreeBSD’s own aliases come first, mapping most system accounts to root,
+# then ours, which adds a few local aliases including the one that specifies
+# where mail for root goes.
+# Using default_database_type rather than naming a type keeps this file valid
+# whichever database types the package was built with.
+alias_maps = $default_database_type:/etc/mail/aliases
+             $default_database_type:/usr/local/etc/mail/aliases
+alias_database = $alias_maps
+
+# Don’t notify logged-in users of new mail through comsat.
+biff = no
+
+
+#-----------------------------------------------------------
+# Outbound mail
+#-----------------------------------------------------------
+
+# Encrypt whenever the recipient’s mail server offers it, without insisting,
+# since plenty of mail servers still don’t. Certificates are checked against
+# the base system’s trust store, so that the log tells trusted connections
+# apart from merely encrypted ones.
+smtp_tls_security_level = may
+smtp_tls_CApath = /etc/ssl/certs
+smtp_tls_loglevel = 1

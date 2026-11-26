@@ -1,0 +1,24 @@
+# /usr/local/etc/mail/aliases: local mail aliases
+
+# FreeBSD’s own /etc/mail/aliases already sends mail for most system accounts,
+# such as postmaster, daemon or operator, to root.
+#
+# This file only completes it with a few additional local aliases, including
+# one that redirects mail for root to a specific address.
+#
+# After any change, rebuild the aliases database with newaliases.
+
+#-----------------------------------------------------------
+# Mail for administrator
+#-----------------------------------------------------------
+
+root:                   john@external-domain.tld
+admin:                  root
+
+
+#-----------------------------------------------------------
+# Main services
+#-----------------------------------------------------------
+
+# Web
+www:                    admin

@@ -49,3 +49,8 @@ If you suspect there may be an unspecified prerequisite in any of these document
 ## Databases
 
  21. [In-memory data store with Redis on FreeBSD](freebsd-redis.md)
+
+
+## Mail server
+
+ 22. [System mail with Postfix on FreeBSD](freebsd-system-mail-postfix.md)

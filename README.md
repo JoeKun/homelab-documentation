@@ -105,3 +105,4 @@ The FreeBSD guides have their own index, grouped by topic in the [`freebsd-serve
  - [Web server](freebsd-server/README.md#web-server)
  - [Directory services](freebsd-server/README.md#directory-services)
  - [Databases](freebsd-server/README.md#databases)
+ - [Mail server](freebsd-server/README.md#mail-server)
