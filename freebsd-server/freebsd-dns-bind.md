@@ -103,7 +103,7 @@ options {
 	// All file and path names are relative to the chroot directory,
 	// if any, and should be fully qualified.
 	//directory     "/usr/local/etc/namedb/working";
-	pid-file		"/var/run/named/pid";
+	pid-file        "/var/run/named/pid";
 	dump-file       "/var/dump/named_dump.db";
 	statistics-file "/var/stats/named.stats";
 
@@ -234,9 +234,9 @@ For any domain name you want this server to be the primary authoritative name se
 It should start with a default TTL directive.
 
 ```
-; my_domain.tld.zone: DNS Zone file for domain my_domain.tld
+; my_domain.tld.zone: DNS zone file for domain my_domain.tld
 
-; Default TTL (Time To Live) value
+; Default TTL (time-to-live) value
 $TTL 86400
 ```
 
@@ -245,12 +245,12 @@ $TTL 86400
 Then you should add a Start of Authority record, also known as `SOA` record.
 
 ```
-@		IN		SOA		ns0		admin (
-			2025101201		; Serial
-			7200			; Refresh		(2 hours)
-			900				; Retry			(15 minutes)
-			2419200			; Expire		(4 weeks)
-			7200			; Minimum		(2 hours)
+@       IN      SOA     ns0     admin (
+        2025101201      ; Serial
+        7200            ; Refresh       (2 hours)
+        900             ; Retry         (15 minutes)
+        2419200         ; Expire        (4 weeks)
+        7200            ; Minimum       (2 hours)
 )
 ```
 
@@ -275,12 +275,12 @@ A common pattern to ensure this is handled correctly is to use a 10 digit number
 After the Start of Authority record, the most essential thing you need to define is the list of authoritative name servers for your zone, using `NS` records.
 
 ```
-; NS Records
-@		IN		NS			ns0
+; NS records
+@                       IN      NS      ns0
 
 ; Primary: My Location
-ns0		IN		A			89.67.45.123
-ns0		IN		AAAA		1234:5678:9abc:edcb::a
+ns0                     IN      A       89.67.45.123
+ns0                     IN      AAAA    1234:5678:9abc:edcb::a
 ```
 
 Since the primary authoritative name server is `ns0.my_domain.tld`, which is part of this zone we’re defining here, this `NS` record needs to be accompanied with relevant address records to specify the IP addresses of `ns0.my_domain.tld`. These addresses need to match the ones you provided to your domain name registrar for the glue records for `ns0.my_domain.tld`.
@@ -299,12 +299,12 @@ If you are also using BuddyNS for your secondary name servers, feel free to refe
 Mail servers that should be used for incoming email for any address ending with `@my_domain.tld` need to be declared with an `MX` record, accompanied with relevant address records to specify the IP addresses of that mail server.
 
 ```
-; MX Records
-@		IN		MX		10		mx0
+; MX records
+@                       IN      MX      10      mx0
 
-; Main Mail Server: My Location
-mx0		IN		A			89.67.45.123
-mx0		IN		AAAA		1234:5678:9abc:edcb::a
+; Main mail exchange server: My Location
+mx0                     IN      A       89.67.45.123
+mx0                     IN      AAAA    1234:5678:9abc:edcb::a
 ```
 
 You should also consider adding specific `TXT` records to enhance mail deliverability, such as:
@@ -319,14 +319,14 @@ However, that is beyond the scope of this specific guide.
 Aside from name servers and mail exchange servers, most other DNS needs can be satisfied with simple address records, such as `A` for IPv4 or `AAAA` for IPv6.
 
 ```
-my_server		IN		A			89.67.45.123
-my_server		IN		AAAA		1234:5678:9abc:edcb::a
+my_server               IN      A       89.67.45.123
+my_server               IN      AAAA    1234:5678:9abc:edcb::a
 ```
 
 You may also define aliases using `CNAME` records, which stands for canonical name.
 
 ```
-www				IN		CNAME		my_server
+www                     IN      CNAME   my_server
 ```
 
 
