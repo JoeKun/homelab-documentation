@@ -2,7 +2,7 @@
 
 ## General approach
 
-For small scale FreeBSD environments, such as those involving a single FreeBSD server, using `poudriere` directly on that server can lead to longer downtime during upgrades to a new major version of FreeBSD.
+For small-scale FreeBSD environments, such as those involving a single FreeBSD server, using `poudriere` directly on that server can lead to longer downtime during upgrades to a new major version of FreeBSD.
 
 Indeed, for such upgrades, the ABI usually changes, and requires all compiled software outside of the base operating system being re-compiled, and reinstalled.
 

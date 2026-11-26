@@ -10,7 +10,7 @@
 # System entries and users
 #-----------------------------------------------------------
 
-# Pre-requisite: you must first run this command to bootstrap the LDAP
+# Prerequisite: you must first run this command to bootstrap the LDAP
 # directory.
 # If you run this command in an interactive shell, rather than as part
 # of a script, then you can omit the --administrator-password option

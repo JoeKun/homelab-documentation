@@ -1,6 +1,6 @@
 # Homelab Documentation
 
-This repository contains documentation on setting up a Debian KVM Hypervisor and various services running on FreeBSD for a production small scale homelab.
+This repository contains documentation on setting up a Debian KVM Hypervisor and various services running on FreeBSD for a production small-scale homelab.
 
 ## Key technologies
 
@@ -26,13 +26,13 @@ However, I’m also beginning to embrace a disaggregation approach in one partic
 
 ### Main server for virtualization and storage
 
-A key architectural decision for this server was to use an Ampere Altra processor, which is a powerful processor with high core count, while remaining energy efficient.
+A key architectural decision for this server was to use an Ampere Altra processor, which is a powerful processor with a high core count, while remaining energy efficient.
 
 One of the important consequences of this choice is that it’s a PCIe 4.0 platform.
 
  - **Chassis**: Supermicro CSE-846BE1C8-R1K23B4 4U Chassis
-	 - Power supplies and fans replaced with quieter Noctua models.
-	 - Power distribution board replaced for another one with PCIe power connectors.
+	 - Power supplies and fans were replaced with quieter Noctua models.
+	 - The power distribution board was replaced with another one with PCIe power connectors.
  - **Motherboard:** ASRock Rack ALTRAD8UD2-1L2Q
 	 - **General purpose networking**
 		 - Broadcom BCM57414 NIC with 2 SFP28 cages (25 Gb/s)
@@ -77,9 +77,9 @@ This mini workstation is Acer’s variant of the NVIDIA DGX Spark, and it has be
 
 These documents are produced in the course of my journey to set up my own server infrastructure for personal use, largely to increase my level of digital sovereignty.
 
-While each document attempts to cover its own topic thoroughly, it’s possible that some document will rely on pre-requisites covered in another document. Sometimes, that may be explicitly called out, whereas in other instances it may not be obvious.
+While each document attempts to cover its own topic thoroughly, it’s possible that some document will rely on prerequisites covered in another document. Sometimes, that may be explicitly called out, whereas in other instances it may not be obvious.
 
-If you suspect there may be an unspecified pre-requisite in any of these documents, it may be helpful to know the order of documents which corresponds to how I configured my own server.
+If you suspect there may be an unspecified prerequisite in any of these documents, it may be helpful to know the order of documents which corresponds to how I configured my own server.
 
 ### Debian KVM Hypervisor
 
